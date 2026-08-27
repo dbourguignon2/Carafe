@@ -325,6 +325,56 @@
   .valuation-empty{ font-size:12.5px; color:var(--muted); background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:16px; text-align:center; line-height:1.5; }
 
   .error-msg{ color: var(--late); font-size:12px; margin-top:8px; }
+
+  /* ==========================================================
+     Mise en page ordinateur — au-delà de 860px, l'appli passe
+     d'un format "app mobile" à un vrai format site web : contenu
+     plus large, cave affichée en grille, fenêtres centrées.
+     En dessous de 860px (téléphone/tablette), rien ne change :
+     c'est le format mobile habituel qui s'applique.
+     ========================================================== */
+  @media (min-width: 860px){
+    body{ padding: 0 0 40px; }
+    .wrap{ max-width: 1180px; padding: 40px 40px 100px; }
+
+    header.top{ align-items: flex-start; }
+    header.top h1{ font-size: 32px; }
+
+    .tabs{ max-width: 720px; margin: 0 auto 24px; }
+
+    #view-cave .search-bar,
+    #view-cave .filter-bar,
+    #view-historique .search-bar,
+    #view-cave .empty,
+    #view-historique .empty{
+      max-width: 720px; margin-left:auto; margin-right:auto;
+    }
+    #alertZone{ max-width: 720px; margin-left:auto; margin-right:auto; }
+
+    #view-accord{ max-width: 520px; margin-left:auto; margin-right:auto; }
+    #view-stats{ max-width: 720px; margin-left:auto; margin-right:auto; }
+
+    /* La cave et l'historique passent en grille de cartes */
+    #bottleList, #historyList{
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 16px;
+      max-width: 1180px; margin: 0 auto;
+    }
+    #bottleList .bottle-card, #historyList .history-card{ margin-bottom: 0; }
+
+    /* Les fenêtres (ajout, détail, compte...) deviennent des fenêtres
+       centrées façon "modale de bureau" plutôt que des tiroirs du bas */
+    .sheet-backdrop{ align-items: center; padding: 24px; }
+    .sheet{
+      border-radius: 20px; max-width: 520px; max-height: 85vh;
+      box-shadow: 0 30px 80px rgba(0,0,0,.35);
+      animation: popIn .18s ease;
+    }
+    @keyframes popIn{ from{ transform: scale(.97); opacity:0;} to{ transform: scale(1); opacity:1; } }
+
+    .fab{ right: 44px; bottom: 44px; transform: none; }
+  }
 </style>
 </head>
 <body>
@@ -562,6 +612,10 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 const fbApp = initializeApp(firebaseConfig);
+
+// URL de la fonction serveur qui fait le pont sécurisé vers l'API Anthropic
+// (remplace l'ancien appel direct à api.anthropic.com)
+const CLOUD_FUNCTION_URL = "https://europe-west1-carafe-app.cloudfunctions.net/callClaude";
 const auth = getAuth(fbApp);
 const db = getFirestore(fbApp);
 let unsubscribeSnapshot = null;
@@ -666,6 +720,7 @@ async function createAccount({ username, email, password, password2, errorElId }
     const cred = await createUserWithEmailAndPassword(auth, cleanEmail, password);
     await updateProfile(cred.user, { displayName: cleanUsername });
     await setDoc(userDocRef(cred.user.uid), { bottles: [], tastings: [], valuationHistory: [] }, { merge: true });
+    renderProfileSwitch();
     return true;
   }catch(err){
     if(errEl) errEl.textContent = firebaseErrorMessage(err);
@@ -1355,20 +1410,15 @@ async function refreshMarketValue(){
         `- id:${b.id} | ${b.domaine} ${b.cuvee||''} ${b.millesime||''} | ${b.region||'région inconnue'} | ${b.couleur} | ${formatLabel(b.format||'bouteille')}`
       ).join('\n');
 
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-6",
-          max_tokens: 1800,
-          tools: [{ type: "web_search_20250305", name: "web_search" }],
-          messages: [{
-            role: "user",
-            content: `Voici une liste de vins de ma cave dont je n'ai pas de prix d'achat confirmé :\n${listDesc}\n\nPour chacun, cherche sur le web une estimation actualisée du prix moyen du marché en euros pour une bouteille de 75cl (adapte si le format indiqué est différent). Si tu ne trouves aucune info précise pour une référence, donne une estimation raisonnable basée sur des vins comparables. Réponds à la toute fin UNIQUEMENT avec un JSON array, sans texte autour, sans markdown, au format exact : [{"id":"","prixEstimeEuros":0}]`
-          }]
-        })
+      const data = await callClaudeApi({
+        model: "claude-sonnet-4-6",
+        max_tokens: 1800,
+        tools: [{ type: "web_search_20250305", name: "web_search" }],
+        messages: [{
+          role: "user",
+          content: `Voici une liste de vins de ma cave dont je n'ai pas de prix d'achat confirmé :\n${listDesc}\n\nPour chacun, cherche sur le web une estimation actualisée du prix moyen du marché en euros pour une bouteille de 75cl (adapte si le format indiqué est différent). Si tu ne trouves aucune info précise pour une référence, donne une estimation raisonnable basée sur des vins comparables. Réponds à la toute fin UNIQUEMENT avec un JSON array, sans texte autour, sans markdown, au format exact : [{"id":"","prixEstimeEuros":0}]`
+        }]
       });
-      const data = await response.json();
       const raw = extractApiText(data).replace(/```json|```/g,'').trim();
       const jsonMatch = raw.match(/\[[\s\S]*\]/);
       const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
@@ -1500,22 +1550,17 @@ async function handlePhotoSelected(e){
 async function identifyLabel(base64, mediaType){
   $('#scanStatus').innerHTML = `<span class="spin"></span> Lecture de l'étiquette…`;
   try{
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 500,
-        messages: [{
-          role: "user",
-          content: [
-            { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
-            { type: "text", text: "Voici la photo d'une étiquette de bouteille de vin. Identifie le domaine/producteur, la cuvée (si mentionnée), le millésime, la région/appellation, le ou les cépages si mentionnés sur l'étiquette, et la couleur probable (rouge, blanc, rose, ou petillant). Réponds UNIQUEMENT avec un objet JSON, sans aucun texte autour, sans balises markdown, au format exact : {\"domaine\":\"\",\"cuvee\":\"\",\"millesime\":\"\",\"region\":\"\",\"cepage\":\"\",\"couleur\":\"\"}. Si une information n'est pas visible ou incertaine, laisse la valeur en chaîne vide." }
-          ]
-        }]
-      })
+    const data = await callClaudeApi({
+      model: "claude-sonnet-4-6",
+      max_tokens: 500,
+      messages: [{
+        role: "user",
+        content: [
+          { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
+          { type: "text", text: "Voici la photo d'une étiquette de bouteille de vin. Identifie le domaine/producteur, la cuvée (si mentionnée), le millésime, la région/appellation, le ou les cépages si mentionnés sur l'étiquette, et la couleur probable (rouge, blanc, rose, ou petillant). Réponds UNIQUEMENT avec un objet JSON, sans aucun texte autour, sans balises markdown, au format exact : {\"domaine\":\"\",\"cuvee\":\"\",\"millesime\":\"\",\"region\":\"\",\"cepage\":\"\",\"couleur\":\"\"}. Si une information n'est pas visible ou incertaine, laisse la valeur en chaîne vide." }
+        ]
+      }]
     });
-    const data = await response.json();
     const textBlock = data.content.find(c=>c.type==='text');
     let raw = textBlock ? textBlock.text : '{}';
     raw = raw.replace(/```json|```/g,'').trim();
@@ -1927,16 +1972,11 @@ Propose 2 à 3 suggestions de vins (cépage, appellation ou style — pas une ma
 Réponds UNIQUEMENT en JSON, sans texte autour, sans markdown, au format exact : {"bottleId":"","raison":"","suggestions":[{"nom":"","raison":""}]}. Les raisons doivent faire 2 à 3 phrases maximum, en français.`;
 
   try{
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 700,
-        messages: [{ role: "user", content: promptText }]
-      })
+    const data = await callClaudeApi({
+      model: "claude-sonnet-4-6",
+      max_tokens: 700,
+      messages: [{ role: "user", content: promptText }]
     });
-    const data = await response.json();
     const textBlock = data.content.find(c=>c.type==='text');
     let raw = textBlock ? textBlock.text : '{}';
     raw = raw.replace(/```json|```/g,'').trim();
@@ -1978,6 +2018,23 @@ function extractApiText(data){
   return data.content.filter(c=>c.type==='text').map(c=>c.text).join('\n');
 }
 
+// ---------- Helper: appeler l'IA via la fonction serveur sécurisée (clé API jamais exposée au navigateur) ----------
+async function callClaudeApi(body){
+  if(!auth.currentUser){
+    throw new Error("Non connecté.");
+  }
+  const idToken = await auth.currentUser.getIdToken();
+  const response = await fetch(CLOUD_FUNCTION_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + idToken
+    },
+    body: JSON.stringify(body)
+  });
+  return response.json();
+}
+
 // ---------- Estimation des prix manquants (recherche web) ----------
 $('#estimateLink').addEventListener('click', async ()=>{
   const link = $('#estimateLink');
@@ -1993,20 +2050,15 @@ $('#estimateLink').addEventListener('click', async ()=>{
   ).join('\n');
 
   try{
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 1500,
-        tools: [{ type: "web_search_20250305", name: "web_search" }],
-        messages: [{
-          role: "user",
-          content: `Voici une liste de vins dont je ne connais pas le prix d'achat :\n${listDesc}\n\nPour chacun, cherche sur le web une estimation réaliste du prix moyen à l'achat en euros pour une bouteille de 75cl (adapte si le format indiqué est différent), en te basant sur le domaine, la cuvée, le millésime et la région. Si tu ne trouves aucune info précise pour une référence, donne une estimation raisonnable basée sur des vins comparables de la même région et appellation plutôt que de laisser vide. Réponds à la toute fin UNIQUEMENT avec un JSON array, sans texte autour, sans markdown, au format exact : [{"id":"","prixEstimeEuros":0}]`
-        }]
-      })
+    const data = await callClaudeApi({
+      model: "claude-sonnet-4-6",
+      max_tokens: 1500,
+      tools: [{ type: "web_search_20250305", name: "web_search" }],
+      messages: [{
+        role: "user",
+        content: `Voici une liste de vins dont je ne connais pas le prix d'achat :\n${listDesc}\n\nPour chacun, cherche sur le web une estimation réaliste du prix moyen à l'achat en euros pour une bouteille de 75cl (adapte si le format indiqué est différent), en te basant sur le domaine, la cuvée, le millésime et la région. Si tu ne trouves aucune info précise pour une référence, donne une estimation raisonnable basée sur des vins comparables de la même région et appellation plutôt que de laisser vide. Réponds à la toute fin UNIQUEMENT avec un JSON array, sans texte autour, sans markdown, au format exact : [{"id":"","prixEstimeEuros":0}]`
+      }]
     });
-    const data = await response.json();
     const raw = extractApiText(data).replace(/```json|```/g,'').trim();
     const jsonMatch = raw.match(/\[[\s\S]*\]/);
     const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
@@ -2037,20 +2089,15 @@ async function fetchWineInfo(id){
   if(currentDetailId === id) renderDetailView(id);
 
   try{
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 1200,
-        tools: [{ type: "web_search_20250305", name: "web_search" }],
-        messages: [{
-          role: "user",
-          content: `Cherche des informations sur ce vin : ${b.domaine} ${b.cuvee||''} ${b.millesime||''}, ${b.region||''}, ${b.couleur}, format ${formatLabel(b.format||'bouteille')}.\n\nDonne-moi :\n1. Un descriptif court (2-3 phrases) du domaine et du style du vin.\n2. Le ou les cépages utilisés, si tu les trouves (sinon laisse vide).\n3. Des notes de dégustation typiques (2-3 phrases) : robe, nez, bouche.\n4. Une note ou évaluation trouvée sur le web si elle existe (ex : note d'un critique, d'un guide, ou d'une plateforme), avec sa source et son échelle. Si tu n'en trouves aucune de fiable, indique-le clairement plutôt que d'inventer une note.${needsPrice? "\n5. Une estimation réaliste du prix moyen à l'achat en euros pour une bouteille de 75cl (adapte si le format est différent), basée sur des vins comparables si tu ne trouves pas ce vin précis." : ''}\n\nRéponds à la toute fin UNIQUEMENT avec un JSON, sans texte autour, sans markdown, au format exact : {"descriptif":"","cepage":"","degustation":"","noteCritique":""${needsPrice? ',"prixEstimeEuros":0' : ''}}`
-        }]
-      })
+    const data = await callClaudeApi({
+      model: "claude-sonnet-4-6",
+      max_tokens: 1200,
+      tools: [{ type: "web_search_20250305", name: "web_search" }],
+      messages: [{
+        role: "user",
+        content: `Cherche des informations sur ce vin : ${b.domaine} ${b.cuvee||''} ${b.millesime||''}, ${b.region||''}, ${b.couleur}, format ${formatLabel(b.format||'bouteille')}.\n\nDonne-moi :\n1. Un descriptif court (2-3 phrases) du domaine et du style du vin.\n2. Le ou les cépages utilisés, si tu les trouves (sinon laisse vide).\n3. Des notes de dégustation typiques (2-3 phrases) : robe, nez, bouche.\n4. Une note ou évaluation trouvée sur le web si elle existe (ex : note d'un critique, d'un guide, ou d'une plateforme), avec sa source et son échelle. Si tu n'en trouves aucune de fiable, indique-le clairement plutôt que d'inventer une note.${needsPrice? "\n5. Une estimation réaliste du prix moyen à l'achat en euros pour une bouteille de 75cl (adapte si le format est différent), basée sur des vins comparables si tu ne trouves pas ce vin précis." : ''}\n\nRéponds à la toute fin UNIQUEMENT avec un JSON, sans texte autour, sans markdown, au format exact : {"descriptif":"","cepage":"","degustation":"","noteCritique":""${needsPrice? ',"prixEstimeEuros":0' : ''}}`
+      }]
     });
-    const data = await response.json();
     const raw = extractApiText(data).replace(/```json|```/g,'').trim();
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
