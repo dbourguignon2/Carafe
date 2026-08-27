@@ -1577,9 +1577,10 @@ async function identifyLabel(base64, mediaType){
     if(tag) tag.textContent = 'Étiquette lue ✓';
     $('#scanStatus').textContent = 'Vérifie et complète les champs ci-dessous si besoin.';
   }catch(err){
+    console.error("Erreur lecture étiquette :", err);
     const tag = $('#scanTag');
     if(tag) tag.textContent = 'Lecture impossible';
-    $('#scanStatus').innerHTML = `<span style="color:var(--late);">Je n'ai pas réussi à lire l'étiquette automatiquement. Complète les champs manuellement.</span>`;
+    $('#scanStatus').innerHTML = `<span style="color:var(--late);">Je n'ai pas réussi à lire l'étiquette automatiquement (${escapeHtml(err.message||'erreur inconnue')}). Complète les champs manuellement.</span>`;
   }
 }
 
@@ -2032,7 +2033,16 @@ async function callClaudeApi(body){
     },
     body: JSON.stringify(body)
   });
-  return response.json();
+  const data = await response.json();
+  if(!response.ok){
+    console.error("Erreur fonction serveur :", response.status, data);
+    throw new Error((data && data.error) ? data.error : `Erreur serveur (${response.status})`);
+  }
+  if(data && data.type === 'error'){
+    console.error("Erreur API Anthropic :", data);
+    throw new Error(data.error && data.error.message ? data.error.message : "Erreur API Anthropic");
+  }
+  return data;
 }
 
 // ---------- Estimation des prix manquants (recherche web) ----------
