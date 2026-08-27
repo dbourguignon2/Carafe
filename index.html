@@ -1,0 +1,2085 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Carafe</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600&display=swap');
+
+  :root{
+    --bg: #f8f4ec;
+    --surface: #ffffff;
+    --surface-2: #f0e7d6;
+    --wine: #6b1f2a;
+    --wine-light: #8f2f3c;
+    --gold: #a3763b;
+    --gold-dim: #8a6530;
+    --text: #2b2117;
+    --muted: #8a7d6a;
+    --line: #e6dcc9;
+    --good: #4f7a41;
+    --warn: #b0742a;
+    --late: #a4453f;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+  .wrap{ max-width: 480px; margin: 0 auto; padding: 20px 16px 100px; }
+
+  h1,h2,h3, .serif{ font-family: 'Fraunces', serif; }
+
+  header.top{
+    display:flex; align-items:baseline; justify-content:space-between;
+    margin-bottom: 22px; padding-top: 6px;
+  }
+  header.top h1{
+    font-size: 26px; font-weight: 600; letter-spacing: 0.2px; color: var(--wine);
+  }
+  header.top span{ color: var(--gold); font-style: italic; font-weight: 500;}
+  .profile-switch{
+    font-size: 11.5px; color: var(--muted); margin-top: 2px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 3px;
+  }
+  .profile-switch:hover{ color: var(--gold); }
+
+  /* Auth screen */
+  .auth-screen{
+    position: fixed; inset: 0; background: var(--bg); z-index: 300;
+    display: none; align-items: center; justify-content: center; padding: 28px 20px;
+    overflow-y: auto;
+  }
+  .auth-screen.active{ display: flex; }
+  .auth-box{ width: 100%; max-width: 380px; }
+  .auth-logo{ text-align: center; margin-bottom: 26px; }
+  .auth-logo h1{ font-size: 32px; font-weight: 600; color: var(--wine); }
+  .auth-logo h1 span{ color: var(--gold); font-style: italic; }
+  .auth-switch-link{ text-align:center; font-size:12.5px; color: var(--gold); margin-top:16px; cursor:pointer; text-decoration:underline; }
+  .auth-note{ font-size: 11px; color: var(--muted); text-align:center; margin-top:20px; line-height:1.5; }
+  .count-badge{ font-size: 12px; color: var(--muted); }
+  .value-badge{ font-size: 12px; color: var(--gold); font-weight:500; margin-top:2px; }
+  .estimate-link{ font-size: 10.5px; color: var(--muted); text-decoration:underline; margin-top:3px; cursor:pointer; }
+  .estimate-link:hover{ color: var(--gold); }
+
+  /* Tabs */
+  .tabs{ display:flex; gap:4px; background:var(--surface); padding:4px; border-radius:12px; margin-bottom:20px; }
+  .tab{
+    flex:1; text-align:center; padding:9px 4px; font-size:13px; font-weight:500;
+    color: var(--muted); border-radius:9px; cursor:pointer; user-select:none;
+    transition: all .15s ease;
+  }
+  .tab.active{ background: var(--wine); color: #fff; }
+
+  .view{ display:none; }
+  .view.active{ display:block; }
+
+  /* Search bar */
+  .search-bar{ margin-bottom: 12px; }
+  .search-bar input{
+    width:100%; background: var(--surface); border:1px solid var(--line); color: var(--text);
+    border-radius:12px; padding: 11px 14px; font-size: 14px; font-family:'Inter',sans-serif;
+  }
+  .search-bar input::placeholder{ color: var(--muted); }
+
+  /* Filter bar */
+  .filter-bar{ margin-bottom: 16px; }
+  .chip-row{ display:flex; gap:6px; overflow-x:auto; padding-bottom:2px; margin-bottom:10px; scrollbar-width:none; }
+  .chip-row::-webkit-scrollbar{ display:none; }
+  .chip{
+    flex-shrink:0; padding: 6px 13px; border-radius: 20px; border:1px solid var(--line);
+    background: var(--surface); color: var(--muted); font-size:12.5px; font-weight:500;
+    cursor:pointer; user-select:none; transition: all .15s ease; white-space:nowrap;
+  }
+  .chip.active{ background: var(--wine); border-color: var(--wine); color:#fff; }
+  #sortSelect{
+    width:100%; background: var(--surface); border:1px solid var(--line); color: var(--muted);
+    border-radius:10px; padding: 8px 12px; font-size: 12.5px; font-family:'Inter',sans-serif;
+  }
+
+  .apogee-chart-wrap{ margin: 14px 0 4px; }
+  .apogee-chart-wrap svg{ width:100%; height:auto; display:block; }
+  .apogee-chart-legend{ display:flex; gap:14px; font-size:10.5px; color:var(--muted); margin-top:6px; flex-wrap:wrap; }
+  .apogee-chart-legend span{ display:inline-flex; align-items:center; gap:4px; }
+  .apogee-chart-legend .dot{ width:7px; height:7px; border-radius:50%; display:inline-block; }
+
+  /* Empty state */
+  .empty{
+    text-align:center; padding: 50px 20px; color: var(--muted);
+  }
+  .empty .glass{ font-size: 34px; margin-bottom: 10px; opacity:.6; }
+  .empty p{ font-size: 14px; line-height:1.5; }
+
+  /* Dashboard alert block */
+  .alert-block{
+    background: linear-gradient(135deg, var(--surface-2), var(--surface));
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--warn);
+    border-radius: 14px; padding: 14px 16px; margin-bottom: 18px;
+    cursor: pointer; transition: transform .1s ease;
+  }
+  .alert-block:active{ transform: scale(0.99); }
+  .alert-block .eyebrow{ font-size: 11px; text-transform:uppercase; letter-spacing:1.2px; color: var(--warn); font-weight:600; margin-bottom:6px;}
+  .alert-block .bottle-line{ font-size: 14px; padding: 4px 0; color: var(--text); display:flex; justify-content:space-between; gap:8px;}
+  .alert-block .bottle-line small{ color: var(--muted); display:block; font-size:11px;}
+  .alert-block .alert-more{ font-size: 11.5px; color: var(--gold); margin-top: 8px; font-weight: 500; }
+
+  /* Bottle card */
+  .bottle-card{
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    cursor: pointer;
+  }
+  .bottle-card .row1{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px;}
+  .bottle-card .domaine{ font-family:'Fraunces',serif; font-size:17px; font-weight:600; line-height:1.25;}
+  .bottle-card .cuvee{ font-size:13px; color: var(--gold); margin-top:1px; font-style: italic;}
+  .bottle-card .meta{ font-size:12px; color: var(--muted); margin-top:6px; }
+  .qty-pill{
+    background: var(--surface-2); border:1px solid var(--line); border-radius:20px;
+    padding: 3px 10px; font-size:12px; color: var(--text); white-space:nowrap; height:fit-content;
+  }
+  .apogee-gauge{ margin-top:12px; }
+  .apogee-gauge .track{ height:5px; border-radius:4px; background: var(--surface-2); position:relative; overflow:hidden;}
+  .apogee-gauge .fill{ position:absolute; top:0; left:0; height:100%; border-radius:4px; }
+  .apogee-gauge .label{ font-size:11px; margin-top:5px; font-weight:500; }
+
+  .status-tot{ color: var(--muted); }
+  .status-garder{ color: var(--good); }
+  .status-apogee{ color: var(--warn); }
+  .status-tard{ color: var(--late); }
+
+  /* Floating add button */
+  .fab{
+    position: fixed; bottom: 24px; right: 50%; transform: translateX(212px);
+    width: 54px; height:54px; border-radius: 50%;
+    background: var(--wine); color:#fff; border:none;
+    font-size: 26px; box-shadow: 0 6px 20px rgba(0,0,0,.4);
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+    z-index: 50;
+  }
+  @media (max-width: 480px){
+    .fab{ right: 20px; transform:none; }
+  }
+
+  /* Modal / sheet */
+  .sheet-backdrop{
+    display:none; position: fixed; inset:0; background: rgba(0,0,0,.6);
+    z-index: 100; align-items:flex-end; justify-content:center;
+  }
+  .sheet-backdrop.active{ display:flex; }
+  .sheet{
+    background: var(--surface); width:100%; max-width:480px;
+    border-radius: 20px 20px 0 0; padding: 18px 18px 28px;
+    max-height: 88vh; overflow-y:auto;
+    animation: slideUp .22s ease;
+  }
+  @keyframes slideUp{ from{ transform: translateY(30px); opacity:0;} to{ transform:translateY(0); opacity:1;} }
+  .sheet .handle{ width:36px; height:4px; background: var(--line); border-radius:3px; margin: 0 auto 16px; }
+  .sheet h2{ font-size:20px; margin-bottom: 4px; }
+  .sheet .subtitle{ font-size: 12px; color: var(--muted); margin-bottom: 16px; }
+
+  .field{ margin-bottom: 12px; }
+  .field label{ font-size:12px; color: var(--muted); display:block; margin-bottom:5px; font-weight:500;}
+  .field input, .field select, .field textarea{
+    width:100%; background: var(--surface-2); border: 1px solid var(--line);
+    border-radius: 10px; padding: 10px 12px; color: var(--text); font-size:14px;
+    font-family:'Inter',sans-serif;
+  }
+  .field textarea{ resize: vertical; min-height: 60px; }
+  .field-row{ display:flex; gap:10px; }
+  .field-row > .field{ flex:1; }
+
+  .btn{
+    width:100%; padding: 13px; border-radius: 12px; border:none;
+    font-size: 14px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif;
+  }
+  .btn-primary{ background: var(--wine); color:#fff; }
+  .btn-primary:disabled{ opacity:.5; }
+  .btn-ghost{ background: transparent; color: var(--muted); border: 1px solid var(--line); margin-top:8px; }
+  .btn-gold{ background: var(--gold); color: #1a1410; }
+  .btn-danger{ background: transparent; color: var(--late); border: 1px solid var(--late); margin-top: 10px;}
+
+  .photo-zone{
+    border: 1.5px dashed var(--line); border-radius: 14px; padding: 20px;
+    text-align:center; color: var(--muted); font-size:13px; margin-bottom:16px;
+    cursor:pointer; position:relative;
+  }
+  .photo-zone.has-img{ padding:0; border-style:solid; overflow:hidden;}
+  .photo-zone img{ width:100%; display:block; max-height:220px; object-fit:cover; }
+  .photo-zone .scan-tag{
+    position:absolute; bottom:8px; left:8px; background:rgba(0,0,0,.6);
+    padding:4px 10px; border-radius:20px; font-size:11px; color: var(--gold);
+  }
+  .divider-or{ text-align:center; font-size:11px; color: var(--muted); margin: 12px 0; text-transform:uppercase; letter-spacing:1px;}
+
+  .spin{
+    display:inline-block; width:14px; height:14px; border-radius:50%;
+    border: 2px solid rgba(255,255,255,.3); border-top-color:#fff;
+    animation: spin .7s linear infinite; margin-right:6px; vertical-align:-2px;
+  }
+  @keyframes spin{ to{ transform: rotate(360deg); } }
+
+  .accord-result{
+    background: var(--surface-2); border:1px solid var(--gold-dim); border-radius:14px;
+    padding:16px; margin-top: 16px;
+  }
+  .accord-result .pick-name{ font-family:'Fraunces',serif; font-size:18px; color: var(--gold); margin-bottom:6px; }
+  .accord-result .pick-why{ font-size:13px; line-height:1.5; color: var(--text); }
+  .accord-suggest-intro{ font-size:12.5px; color: var(--muted); line-height:1.5; margin: 14px 0 10px; }
+
+  .tasting-item{
+    border-bottom: 1px solid var(--line); padding: 10px 0; font-size:13px;
+  }
+  .tasting-item .d{ color: var(--muted); font-size:11px; }
+
+  .history-card{
+    background: var(--surface); border:1px solid var(--line); border-radius:14px;
+    padding: 13px 15px; margin-bottom: 10px;
+  }
+  .history-card .name{ font-family:'Fraunces',serif; font-size:15.5px; font-weight:600; }
+  .history-card .top-row{ display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+  .history-card .date{ font-size:11px; color: var(--muted); white-space:nowrap; }
+  .history-card .note{ font-size:12px; color: var(--gold); margin-top:2px; font-weight:600;}
+  .history-card .comment{ font-size:13px; color: var(--text); margin-top:6px; line-height:1.4; }
+
+  .profile-item{
+    display:flex; justify-content:space-between; align-items:center;
+    background: var(--surface-2); border:1px solid var(--line); border-radius:12px;
+    padding: 12px 14px; margin-bottom:8px; cursor:pointer;
+  }
+  .profile-item.active{ border-color: var(--wine); background: var(--surface); }
+  .profile-item .p-name{ font-family:'Fraunces',serif; font-size:15px; font-weight:600; }
+  .profile-item .p-count{ font-size:11px; color: var(--muted); margin-top:1px; }
+  .profile-item .p-check{ color: var(--wine); font-size:16px; }
+  .profile-item .p-delete{ color: var(--late); font-size:11.5px; text-decoration:underline; cursor:pointer; padding:4px; }
+
+  .priority-card{
+    display:flex; gap:12px; align-items:flex-start;
+    background: var(--surface-2); border:1px solid var(--line); border-radius:14px;
+    padding: 13px 14px; margin-bottom: 10px; cursor:pointer;
+  }
+  .priority-rank{
+    width:28px; height:28px; border-radius:50%; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    font-size:12.5px; font-weight:700; color:#fff;
+  }
+  .priority-card .p-body{ flex:1; min-width:0; }
+  .priority-card .p-name{ font-family:'Fraunces',serif; font-size:15px; font-weight:600; line-height:1.25; }
+  .priority-card .p-meta{ font-size:11.5px; color: var(--muted); margin-top:2px; }
+  .priority-card .p-status{ font-size:12px; font-weight:500; margin-top:6px; }
+  .priority-summary{
+    text-align:center; padding: 6px 0 18px;
+  }
+  .priority-summary .num{ font-family:'Fraunces',serif; font-size:34px; font-weight:600; color: var(--warn); }
+  .priority-summary .lbl{ font-size:12.5px; color: var(--muted); margin-top:2px; }
+
+  .batch-tip{
+    background: var(--surface-2); border:1px solid var(--gold-dim); border-radius:10px;
+    padding: 9px 11px; font-size:12px; color: var(--gold); margin-top:10px; line-height:1.4;
+  }
+
+  .section-title{ font-size:13px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); margin: 18px 0 10px; font-weight:600;}
+
+  .wine-info-block{
+    background: var(--surface-2); border:1px solid var(--line); border-radius:14px;
+    padding: 14px 15px; margin-bottom: 8px;
+  }
+  .wine-info-block .wi-label{ font-size:10.5px; text-transform:uppercase; letter-spacing:1px; color: var(--gold); font-weight:600; margin-bottom:5px;}
+  .wine-info-block .wi-text{ font-size:13px; line-height:1.5; color: var(--text); margin-bottom:12px;}
+  .wine-info-block .wi-text:last-child{ margin-bottom:0; }
+  .wine-info-block .wi-note{ display:inline-block; background: var(--surface); border:1px solid var(--gold-dim); border-radius:8px; padding:5px 10px; font-size:12.5px; color: var(--gold); font-weight:600;}
+  .wine-info-fetch-status{ font-size:12px; color: var(--muted); margin: 6px 0 4px; }
+
+  .bottle-photo{
+    width:100%; max-height: 260px; object-fit: cover; border-radius: 14px;
+    margin-bottom: 14px; border: 1px solid var(--line); display:block;
+  }
+
+  /* Stats */
+  .stat-cards{ display:flex; gap:10px; margin-bottom: 18px; }
+  .stat-card{
+    flex:1; background: var(--surface); border:1px solid var(--line); border-radius:14px;
+    padding: 13px 12px; text-align:center;
+  }
+  .stat-card .num{ font-family:'Fraunces',serif; font-size:20px; font-weight:600; color: var(--gold); }
+  .stat-card .lbl{ font-size:10.5px; color: var(--muted); margin-top:2px; }
+
+  .stat-block{ margin-bottom: 22px; }
+  .stat-block-title{ font-size:13px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); margin-bottom:12px; font-weight:600;}
+
+  .stat-row{ margin-bottom: 9px; }
+  .stat-row .top{ display:flex; justify-content:space-between; font-size:12.5px; margin-bottom:4px; }
+  .stat-row .top .name{ color: var(--text); }
+  .stat-row .top .val{ color: var(--muted); }
+  .stat-row .track{ height:6px; border-radius:4px; background: var(--surface-2); overflow:hidden; }
+  .stat-row .fill{ height:100%; border-radius:4px; background: var(--gold); }
+
+  .valuation-chart-wrap svg{ width:100%; height:auto; display:block; }
+  .valuation-empty{ font-size:12.5px; color:var(--muted); background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:16px; text-align:center; line-height:1.5; }
+
+  .error-msg{ color: var(--late); font-size:12px; margin-top:8px; }
+</style>
+</head>
+<body>
+
+<div class="auth-screen" id="authScreen">
+  <div class="auth-box" id="authBox"></div>
+</div>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Carafe<span>.</span></h1>
+      <div class="profile-switch" id="profileSwitch">…</div>
+    </div>
+    <div style="text-align:right;">
+      <div class="count-badge" id="countBadge"></div>
+      <div class="value-badge" id="valueBadge"></div>
+      <div class="estimate-link" id="estimateLink" style="display:none;">Estimer les prix manquants</div>
+    </div>
+  </header>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="cave">Ma cave</div>
+    <div class="tab" data-tab="accord">À table</div>
+    <div class="tab" data-tab="historique">Historique</div>
+    <div class="tab" data-tab="stats">Stats</div>
+  </div>
+
+  <!-- CAVE VIEW -->
+  <div class="view active" id="view-cave">
+    <div id="alertZone"></div>
+
+    <div class="search-bar">
+      <input type="text" id="searchInput" placeholder="🔍 Rechercher domaine, cuvée, région…">
+    </div>
+
+    <div class="filter-bar" id="filterBar">
+      <div class="chip-row" id="colorChips">
+        <div class="chip active" data-color="tous">Tous</div>
+        <div class="chip" data-color="rouge">Rouge</div>
+        <div class="chip" data-color="blanc">Blanc</div>
+        <div class="chip" data-color="rose">Rosé</div>
+        <div class="chip" data-color="petillant">Pétillant</div>
+      </div>
+      <select id="sortSelect">
+        <option value="apogee">Tri : urgence (apogée)</option>
+        <option value="nom">Tri : domaine A→Z</option>
+        <option value="region">Tri : région</option>
+        <option value="millesime">Tri : millésime récent</option>
+      </select>
+    </div>
+
+    <div id="bottleList"></div>
+    <div class="empty" id="emptyState" style="display:none;">
+      <div class="glass">🍷</div>
+      <p>Ta cave est vide pour l'instant.<br>Ajoute ta première bouteille avec le bouton en bas.</p>
+    </div>
+  </div>
+
+  <!-- ACCORD VIEW -->
+  <div class="view" id="view-accord">
+    <h2 class="serif" style="font-size:19px; margin-bottom:4px;">Qu'est-ce qu'on mange ?</h2>
+    <p class="subtitle" style="color:var(--muted); font-size:12px; margin-bottom:16px;">Décris ton repas, je propose une bouteille de ta cave.</p>
+
+    <div class="field">
+      <label>Plat</label>
+      <textarea id="plat" placeholder="ex : magret de canard, sauce au poivre"></textarea>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Convives</label>
+        <input type="number" id="convives" placeholder="2" min="1">
+      </div>
+      <div class="field">
+        <label>Occasion</label>
+        <select id="occasion">
+          <option value="quotidien">Repas quotidien</option>
+          <option value="special">Occasion spéciale</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn btn-primary" id="btnAccord">Proposer une bouteille</button>
+    <div id="accordError" class="error-msg"></div>
+    <div id="accordResult"></div>
+  </div>
+
+  <!-- HISTORIQUE VIEW -->
+  <div class="view" id="view-historique">
+    <div class="search-bar">
+      <input type="text" id="historySearchInput" placeholder="🔍 Rechercher dans les bouteilles bues…">
+    </div>
+    <div id="historyList"></div>
+    <div class="empty" id="historyEmpty" style="display:none;">
+      <div class="glass">📖</div>
+      <p>Aucune bouteille bue pour l'instant.<br>Ton historique de dégustation apparaîtra ici.</p>
+    </div>
+  </div>
+
+  <!-- STATS VIEW -->
+  <div class="view" id="view-stats">
+    <div id="statsContent"></div>
+    <div class="empty" id="statsEmpty" style="display:none;">
+      <div class="glass">📊</div>
+      <p>Ajoute des bouteilles à ta cave pour voir apparaître tes statistiques.</p>
+    </div>
+  </div>
+</div>
+
+<button class="fab" id="fabAdd">+</button>
+
+<!-- ADD BOTTLE SHEET -->
+<div class="sheet-backdrop" id="addBackdrop">
+  <div class="sheet">
+    <div class="handle"></div>
+    <h2 class="serif">Ajouter une référence</h2>
+    <p class="subtitle">Prends l'étiquette en photo ou saisis les infos.</p>
+
+    <div class="photo-zone" id="photoZone">
+      <span id="photoZoneText">📷 Photographier l'étiquette</span>
+      <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none;">
+    </div>
+    <div id="scanStatus" style="font-size:12px; color:var(--muted); margin-bottom:14px;"></div>
+
+    <div class="divider-or">informations</div>
+
+    <div class="field">
+      <label>Domaine</label>
+      <input type="text" id="f-domaine" placeholder="ex : Château Montviel">
+    </div>
+    <div class="field">
+      <label>Cuvée</label>
+      <input type="text" id="f-cuvee" placeholder="ex : Cuvée Prestige (optionnel)">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Millésime</label>
+        <input type="number" id="f-millesime" placeholder="2018">
+      </div>
+      <div class="field">
+        <label>Couleur</label>
+        <select id="f-couleur">
+          <option value="rouge">Rouge</option>
+          <option value="blanc">Blanc</option>
+          <option value="rose">Rosé</option>
+          <option value="petillant">Pétillant</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Format</label>
+      <select id="f-format">
+        <option value="demi">Demi-bouteille (37,5 cl)</option>
+        <option value="bouteille" selected>Bouteille (75 cl)</option>
+        <option value="magnum">Magnum (1,5 l)</option>
+        <option value="jeroboam">Jéroboam (3 l)</option>
+        <option value="mathusalem">Mathusalem (6 l)</option>
+        <option value="salmanazar">Salmanazar (9 l)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Région / appellation</label>
+      <input type="text" id="f-region" placeholder="ex : Pomerol">
+    </div>
+    <div class="field">
+      <label>Cépage(s)</label>
+      <input type="text" id="f-cepage" placeholder="ex : Merlot, Cabernet Franc (optionnel)">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Quantité</label>
+        <input type="number" id="f-quantite" value="1" min="1">
+      </div>
+      <div class="field">
+        <label>Prix d'achat (€ / bouteille)</label>
+        <input type="number" id="f-prix" placeholder="ex : 25" min="0" step="0.01">
+      </div>
+    </div>
+    <div class="field">
+      <label>Emplacement cave</label>
+      <input type="text" id="f-emplacement" placeholder="ex : casier B3">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Apogée — début</label>
+        <input type="number" id="f-apogee-debut" placeholder="2024">
+      </div>
+      <div class="field">
+        <label>Apogée — fin</label>
+        <input type="number" id="f-apogee-fin" placeholder="2030">
+      </div>
+    </div>
+    <div style="font-size:11px; color:var(--muted); margin:-4px 0 14px;">Laisse vide pour une estimation automatique selon la région et le millésime.</div>
+
+    <button class="btn btn-primary" id="btnSaveBottle">Enregistrer la bouteille</button>
+    <button class="btn btn-ghost" id="btnCancelAdd">Annuler</button>
+  </div>
+</div>
+
+<!-- BOTTLE DETAIL SHEET -->
+<div class="sheet-backdrop" id="detailBackdrop">
+  <div class="sheet" id="detailSheetContent"></div>
+</div>
+
+<!-- PROFILE SHEET -->
+<div class="sheet-backdrop" id="profileBackdrop">
+  <div class="sheet" id="profileSheetContent"></div>
+</div>
+
+<!-- PRIORITY SHEET -->
+<div class="sheet-backdrop" id="priorityBackdrop">
+  <div class="sheet" id="prioritySheetContent"></div>
+</div>
+
+<script type="module">
+// ============================================================
+// CONFIGURATION FIREBASE — à remplacer par tes propres valeurs
+// (Console Firebase → Paramètres du projet → Tes applications → Config SDK)
+// ============================================================
+const firebaseConfig = {
+  apiKey: "AIzaSyCEkWwAeS5_rZf7IAIbraBLCO5P5b-aNt0",
+  authDomain: "carafe-app.firebaseapp.com",
+  projectId: "carafe-app",
+  storageBucket: "carafe-app.firebasestorage.app",
+  messagingSenderId: "615247804850",
+  appId: "1:615247804850:web:c333063e4f1b6dcf6b4cab"
+};
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import {
+  getAuth, onAuthStateChanged, createUserWithEmailAndPassword,
+  signInWithEmailAndPassword, signOut, updateProfile, sendPasswordResetEmail
+} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import {
+  getFirestore, doc, getDoc, setDoc, onSnapshot
+} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+const fbApp = initializeApp(firebaseConfig);
+const auth = getAuth(fbApp);
+const db = getFirestore(fbApp);
+let unsubscribeSnapshot = null;
+
+const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => document.querySelectorAll(sel);
+
+let bottles = [];
+let tastings = [];
+let valuationHistory = [];
+let currentDetailId = null;
+let scannedPhotoBase64 = null;
+let scannedPhotoMedia = null;
+let scannedPhotoDataUrl = null;
+let editPhotoDataUrl = null;
+let activeColorFilter = 'tous';
+let activeSort = 'apogee';
+let searchQuery = '';
+let historySearchQuery = '';
+
+const FORMAT_LABELS = {
+  demi: 'Demi-bouteille (37,5 cl)',
+  bouteille: 'Bouteille (75 cl)',
+  magnum: 'Magnum (1,5 l)',
+  jeroboam: 'Jéroboam (3 l)',
+  mathusalem: 'Mathusalem (6 l)',
+  salmanazar: 'Salmanazar (9 l)'
+};
+function formatLabel(f){ return FORMAT_LABELS[f] || FORMAT_LABELS.bouteille; }
+
+// ---------- Firestore : chargement / sauvegarde de la cave ----------
+function userDocRef(uid){
+  return doc(db, 'users', uid);
+}
+
+async function loadData(){
+  if(!auth.currentUser) return;
+  const uid = auth.currentUser.uid;
+
+  if(unsubscribeSnapshot) unsubscribeSnapshot();
+  unsubscribeSnapshot = onSnapshot(userDocRef(uid), (snap)=>{
+    const data = snap.exists() ? snap.data() : {};
+    bottles = data.bottles || [];
+    tastings = data.tastings || [];
+    valuationHistory = data.valuationHistory || [];
+    render();
+  }, (err)=>{
+    console.error('Erreur de synchronisation Firestore :', err);
+  });
+}
+
+async function saveBottles(){
+  if(!auth.currentUser) return;
+  await setDoc(userDocRef(auth.currentUser.uid), { bottles }, { merge: true });
+}
+async function saveTastings(){
+  if(!auth.currentUser) return;
+  await setDoc(userDocRef(auth.currentUser.uid), { tastings }, { merge: true });
+}
+async function saveValuationHistory(){
+  if(!auth.currentUser) return;
+  await setDoc(userDocRef(auth.currentUser.uid), { valuationHistory }, { merge: true });
+}
+
+// ---------- Comptes (Firebase Authentication) ----------
+let authMode = 'splash';
+
+onAuthStateChanged(auth, async (user)=>{
+  if(user){
+    renderProfileSwitch();
+    await loadData();
+    closeAuthScreen();
+  } else {
+    if(unsubscribeSnapshot){ unsubscribeSnapshot(); unsubscribeSnapshot = null; }
+    bottles = []; tastings = []; valuationHistory = [];
+    openAuthScreen('login');
+  }
+});
+
+// Écran affiché le temps que Firebase détermine si une session existe déjà
+openAuthScreen('splash');
+
+function renderProfileSwitch(){
+  const el = $('#profileSwitch');
+  if(!el) return;
+  const user = auth.currentUser;
+  el.textContent = user ? (user.displayName || user.email) : '…';
+}
+
+async function createAccount({ username, email, password, password2, errorElId }){
+  const errEl = $('#'+errorElId);
+  if(errEl) errEl.textContent = '';
+  const cleanUsername = (username||'').trim();
+  const cleanEmail = (email||'').trim();
+
+  if(!cleanUsername){ if(errEl) errEl.textContent = "Choisis un nom d'utilisateur."; return false; }
+  if(!cleanEmail){ if(errEl) errEl.textContent = "Renseigne ton email."; return false; }
+  if(!password || password.length < 6){ if(errEl) errEl.textContent = "Le mot de passe doit faire au moins 6 caractères."; return false; }
+  if(password !== password2){ if(errEl) errEl.textContent = "Les mots de passe ne correspondent pas."; return false; }
+
+  try{
+    const cred = await createUserWithEmailAndPassword(auth, cleanEmail, password);
+    await updateProfile(cred.user, { displayName: cleanUsername });
+    await setDoc(userDocRef(cred.user.uid), { bottles: [], tastings: [], valuationHistory: [] }, { merge: true });
+    return true;
+  }catch(err){
+    if(errEl) errEl.textContent = firebaseErrorMessage(err);
+    return false;
+  }
+}
+
+async function attemptLogin(email, password, errorElId){
+  const errEl = $('#'+errorElId);
+  if(errEl) errEl.textContent = '';
+  try{
+    await signInWithEmailAndPassword(auth, (email||'').trim(), password);
+    return true;
+  }catch(err){
+    if(errEl) errEl.textContent = firebaseErrorMessage(err);
+    return false;
+  }
+}
+
+async function requestPasswordReset(email, statusElId){
+  const statusEl = $('#'+statusElId);
+  const clean = (email||'').trim();
+  if(!clean){ if(statusEl) statusEl.textContent = "Renseigne ton email d'abord."; return; }
+  try{
+    await sendPasswordResetEmail(auth, clean);
+    if(statusEl) statusEl.textContent = "Email de réinitialisation envoyé, vérifie ta boîte mail.";
+  }catch(err){
+    if(statusEl) statusEl.textContent = firebaseErrorMessage(err);
+  }
+}
+
+function firebaseErrorMessage(err){
+  const code = err && err.code ? err.code : '';
+  const map = {
+    'auth/email-already-in-use': 'Cet email est déjà utilisé par un compte.',
+    'auth/invalid-email': 'Adresse email invalide.',
+    'auth/weak-password': 'Mot de passe trop faible (6 caractères minimum).',
+    'auth/user-not-found': 'Aucun compte ne correspond à cet email.',
+    'auth/wrong-password': 'Mot de passe incorrect.',
+    'auth/invalid-credential': 'Email ou mot de passe incorrect.',
+    'auth/too-many-requests': 'Trop de tentatives, réessaie dans quelques minutes.'
+  };
+  return map[code] || "Une erreur est survenue. Réessaie.";
+}
+
+async function logout(){
+  closeProfileSheet();
+  await signOut(auth);
+}
+
+function renderProfileSheet(){
+  const content = $('#profileSheetContent');
+  if(!content) return;
+  const user = auth.currentUser;
+
+  content.innerHTML = `
+    <div class="handle"></div>
+    <h2 class="serif">Mon compte</h2>
+    <p class="subtitle">Cette cave n'est accessible qu'à toi, avec ton email et ton mot de passe. Elle se synchronise automatiquement sur tous tes appareils connectés au même compte.</p>
+
+    <div class="profile-item active" style="cursor:default;">
+      <div>
+        <div class="p-name">${escapeHtml(user ? (user.displayName || '') : '')}</div>
+        <div class="p-count">${escapeHtml(user ? user.email : '')}</div>
+      </div>
+      <span class="p-check">✓</span>
+    </div>
+
+    <button class="btn btn-ghost" id="btnLogout" style="margin-top:16px;">Se déconnecter</button>
+    <button class="btn btn-ghost" id="btnCloseProfile" style="margin-top:8px;">Fermer</button>
+  `;
+
+  $('#btnLogout').addEventListener('click', logout);
+  $('#btnCloseProfile').addEventListener('click', closeProfileSheet);
+}
+
+function openProfileSheet(){
+  renderProfileSheet();
+  $('#profileBackdrop').classList.add('active');
+}
+function closeProfileSheet(){
+  $('#profileBackdrop').classList.remove('active');
+}
+
+// ---------- Écran d'accueil / connexion / création de compte ----------
+function renderAuthScreen(){
+  const box = $('#authBox');
+  if(!box) return;
+
+  if(authMode === 'splash'){
+    box.innerHTML = `<div class="auth-logo" style="margin-bottom:0;"><h1>Carafe<span>.</span></h1></div>`;
+
+  } else if(authMode === 'signup'){
+    box.innerHTML = `
+      <div class="auth-logo"><h1>Carafe<span>.</span></h1></div>
+      <p class="subtitle" style="text-align:center;">Crée ton compte pour commencer ta cave.</p>
+      <div class="field"><label>Nom d'utilisateur</label><input type="text" id="auth-username" placeholder="ex : Julien"></div>
+      <div class="field"><label>Email</label><input type="email" id="auth-email" placeholder="toi@exemple.com"></div>
+      <div class="field"><label>Mot de passe</label><input type="password" id="auth-password" placeholder="••••••••"></div>
+      <div class="field"><label>Confirmer le mot de passe</label><input type="password" id="auth-password2" placeholder="••••••••"></div>
+      <div class="error-msg" id="authError"></div>
+      <button class="btn btn-primary" id="btnAuthSignup">Créer mon compte</button>
+      <div class="auth-switch-link" id="linkGoToLogin">J'ai déjà un compte</div>
+      <div class="auth-note">Ton compte est protégé par une vraie authentification Firebase. Ta cave se synchronise automatiquement entre tous tes appareils dès que tu es connecté avec le même compte.</div>
+    `;
+    $('#btnAuthSignup').addEventListener('click', async ()=>{
+      const btn = $('#btnAuthSignup');
+      btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Création…';
+      const ok = await createAccount({
+        username: $('#auth-username').value,
+        email: $('#auth-email').value,
+        password: $('#auth-password').value,
+        password2: $('#auth-password2').value,
+        errorElId: 'authError'
+      });
+      btn.disabled = false; btn.textContent = 'Créer mon compte';
+    });
+    $('#linkGoToLogin').addEventListener('click', ()=>{ authMode='login'; renderAuthScreen(); });
+
+  } else if(authMode === 'login'){
+    box.innerHTML = `
+      <div class="auth-logo"><h1>Carafe<span>.</span></h1></div>
+      <p class="subtitle" style="text-align:center;">Connecte-toi à ta cave.</p>
+      <div class="field"><label>Email</label><input type="email" id="auth-login-email" placeholder="toi@exemple.com"></div>
+      <div class="field"><label>Mot de passe</label><input type="password" id="auth-login-password" placeholder="••••••••"></div>
+      <div class="error-msg" id="authError"></div>
+      <button class="btn btn-primary" id="btnAuthLogin">Se connecter</button>
+      <div class="auth-switch-link" id="linkForgotPassword">Mot de passe oublié ?</div>
+      <div class="auth-switch-link" id="linkGoToSignup">Créer un compte</div>
+    `;
+    $('#btnAuthLogin').addEventListener('click', async ()=>{
+      const btn = $('#btnAuthLogin');
+      btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Connexion…';
+      await attemptLogin($('#auth-login-email').value, $('#auth-login-password').value, 'authError');
+      btn.disabled = false; btn.textContent = 'Se connecter';
+    });
+    $('#linkForgotPassword').addEventListener('click', ()=>{
+      requestPasswordReset($('#auth-login-email').value, 'authError');
+    });
+    $('#linkGoToSignup').addEventListener('click', ()=>{ authMode='signup'; renderAuthScreen(); });
+  }
+}
+
+function openAuthScreen(mode){
+  authMode = mode;
+  renderAuthScreen();
+  $('#authScreen').classList.add('active');
+}
+function closeAuthScreen(){
+  $('#authScreen').classList.remove('active');
+}
+
+// ---------- Apogee estimation ----------
+function estimateApogee(millesime, region, couleur){
+  const m = parseInt(millesime) || new Date().getFullYear();
+  let spanStart = 2, spanEnd = 6; // defaut vin simple
+  const r = (region||'').toLowerCase();
+  if(couleur === 'blanc'){ spanStart = 1; spanEnd = 4; }
+  if(couleur === 'petillant'){ spanStart = 0; spanEnd = 3; }
+  if(couleur === 'rose'){ spanStart = 0; spanEnd = 2; }
+  if(couleur === 'rouge'){
+    if(/pomerol|saint-?emilion|margaux|pauillac|saint-?julien|bordeaux|rioja|barolo|barbaresco|hermitage|cote-?rotie|chateauneuf/.test(r)){
+      spanStart = 5; spanEnd = 15;
+    } else if(/bourgogne|pinot|cotes du rhone|languedoc|beaujolais/.test(r)){
+      spanStart = 3; spanEnd = 8;
+    } else {
+      spanStart = 2; spanEnd = 6;
+    }
+  }
+  return { debut: m + spanStart, fin: m + spanEnd };
+}
+
+function apogeeStatus(bottle){
+  const year = new Date().getFullYear();
+  const debut = bottle.apogeeDebut, fin = bottle.apogeeFin;
+  const start = bottle.millesime || year;
+  if(year < debut) return { key:'garder', pct: Math.min(95, ((year - start) / ((debut - start) || 1)) * 100) };
+  if(year >= debut && year <= fin) return { key:'apogee', pct: ((year-debut)/((fin-debut)||1))*100 };
+  return { key:'tard', pct: 100 };
+}
+
+function statusLabel(bottle){
+  const year = new Date().getFullYear();
+  const s = apogeeStatus(bottle);
+  if(s.key === 'garder') return { text: `À garder — apogée en ${bottle.apogeeDebut}`, cls:'status-garder', color:'var(--good)'};
+  if(s.key === 'apogee') return { text: `À son apogée (jusqu'en ${bottle.apogeeFin})`, cls:'status-apogee', color:'var(--warn)'};
+  return { text: `À boire — dépasse son apogée depuis ${year-bottle.apogeeFin} an(s)`, cls:'status-tard', color:'var(--late)'};
+}
+
+// ---------- Apogee evolution chart ----------
+function buildApogeeChart(b){
+  const width = 320, height = 158, padLeft = 14, padRight = 14;
+  const millesime = b.millesime || (b.apogeeDebut - 3);
+  const peakStart = b.apogeeDebut;
+  const peakEnd = b.apogeeFin;
+  const start = millesime;
+  const maladieYear = millesime + Math.max(1, Math.round((peakStart - millesime) * 0.12));
+  const buffer = Math.max(2, Math.round((peakEnd - peakStart) * 0.35));
+  const end = peakEnd + buffer;
+  const span = (end - start) || 1;
+
+  const curveTop = 38, curveBase = 108;
+  const xForYear = (y) => padLeft + ((y - start) / span) * (width - padLeft - padRight);
+  const yFor = (frac) => curveBase - (curveBase - curveTop) * frac;
+
+  // Points de la courbe, en (année, fraction de qualité 0=bas / 1=apogée), lignes droites comme le schéma de référence
+  const maturSpan = (peakStart - maladieYear) || 1;
+  const points = [
+    [start, 0.55],                              // Jeunesse
+    [maladieYear, 0],                            // Maladie de la bouteille
+    [maladieYear + maturSpan*0.30, 0.32],        // Maturation — repli 1
+    [maladieYear + maturSpan*0.50, 0.20],        // Maturation — repli 2
+    [maladieYear + maturSpan*0.78, 0.55],        // Maturation — reprise
+    [peakStart, 1],                              // Entrée en apogée
+    [peakEnd, 1],                                // Sortie d'apogée
+    [end, 0]                                     // Déclin
+  ];
+
+  let d = '';
+  points.forEach((p, i) => {
+    d += (i===0? 'M':'L') + xForYear(p[0]).toFixed(1) + ' ' + yFor(p[1]).toFixed(1) + ' ';
+  });
+
+  const currentYear = new Date().getFullYear();
+  const clampedYear = Math.min(Math.max(currentYear, start), end);
+  let markerY = curveBase;
+  for(let i=0;i<points.length-1;i++){
+    const [y1,f1] = points[i], [y2,f2] = points[i+1];
+    if(clampedYear >= y1 && clampedYear <= y2){
+      const t = (clampedYear - y1) / ((y2 - y1) || 1);
+      markerY = yFor(f1 + (f2 - f1) * t);
+      break;
+    }
+  }
+  const markerX = xForYear(clampedYear);
+  const s = apogeeStatus(b);
+  const markerColor = s.key==='garder' ? 'var(--good)' : s.key==='apogee' ? 'var(--warn)' : 'var(--late)';
+
+  const zoneX1 = xForYear(peakStart), zoneX2 = xForYear(peakEnd);
+  const axisY = curveBase + 16;
+  const yearLabels = [start, peakStart, peakEnd, end].filter((v,i,arr)=>arr.indexOf(v)===i);
+
+  const phaseY = 16;
+  const phaseLabels = [
+    { x: (xForYear(start)+xForYear(maladieYear))/2, text: 'Jeunesse' },
+    { x: (xForYear(maladieYear)+xForYear(peakStart))/2, text: 'Maturation' },
+    { x: (zoneX1+zoneX2)/2, text: 'Apogée' },
+    { x: (xForYear(peakEnd)+xForYear(end))/2, text: 'Déclin' }
+  ];
+
+  return `
+    <svg viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+      <rect x="${zoneX1.toFixed(1)}" y="24" width="${(zoneX2-zoneX1).toFixed(1)}" height="${(axisY-24).toFixed(1)}" fill="var(--gold)" opacity="0.09" rx="3"/>
+      <line x1="${padLeft}" y1="${axisY}" x2="${width-padRight}" y2="${axisY}" stroke="var(--line)" stroke-width="1"/>
+      <line x1="${xForYear(maladieYear).toFixed(1)}" y1="24" x2="${xForYear(maladieYear).toFixed(1)}" y2="${axisY}" stroke="var(--line)" stroke-width="1" stroke-dasharray="2,3"/>
+      <line x1="${zoneX1.toFixed(1)}" y1="24" x2="${zoneX1.toFixed(1)}" y2="${axisY}" stroke="var(--line)" stroke-width="1" stroke-dasharray="2,3"/>
+      <line x1="${zoneX2.toFixed(1)}" y1="24" x2="${zoneX2.toFixed(1)}" y2="${axisY}" stroke="var(--line)" stroke-width="1" stroke-dasharray="2,3"/>
+      <path d="${d.trim()}" fill="none" stroke="var(--gold)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+      <line x1="${markerX.toFixed(1)}" y1="24" x2="${markerX.toFixed(1)}" y2="${axisY}" stroke="${markerColor}" stroke-width="1.3" stroke-dasharray="3,3"/>
+      <circle cx="${markerX.toFixed(1)}" cy="${markerY.toFixed(1)}" r="4.5" fill="${markerColor}" stroke="var(--bg)" stroke-width="1.5"/>
+      ${phaseLabels.map(p=>`<text x="${p.x.toFixed(1)}" y="${phaseY}" font-size="8.5" fill="var(--muted)" text-anchor="middle" font-family="Inter, sans-serif">${p.text}</text>`).join('')}
+      ${yearLabels.map(y=>`<text x="${xForYear(y).toFixed(1)}" y="${axisY+13}" font-size="9.5" fill="var(--muted)" text-anchor="middle" font-family="Inter, sans-serif">${y}</text>`).join('')}
+      <text x="${markerX.toFixed(1)}" y="${axisY+27}" font-size="9.5" fill="${markerColor}" text-anchor="middle" font-family="Inter, sans-serif" font-weight="600">${currentYear}</text>
+    </svg>
+  `;
+}
+
+// ---------- Rendering ----------
+function render(){
+  renderCount();
+  renderAlerts();
+  renderList();
+  renderHistory();
+  renderStats();
+}
+
+function computeTotalValue(){
+  const knownValue = bottles.reduce((s,b)=> s + ((b.prix!=null? parseFloat(b.prix):0) * (parseInt(b.quantite)||1)), 0);
+  const estimatedValue = bottles.reduce((s,b)=> s + (b.prix==null && b.prixEstime!=null ? parseFloat(b.prixEstime) * (parseInt(b.quantite)||1) : 0), 0);
+  return { known: knownValue, estimated: estimatedValue, total: knownValue + estimatedValue };
+}
+
+function renderCount(){
+  const total = bottles.reduce((s,b)=>s+(parseInt(b.quantite)||1),0);
+  $('#countBadge').textContent = total > 0 ? `${total} bouteille${total>1?'s':''}` : '';
+
+  const { estimated: estimatedValue, total: totalValue } = computeTotalValue();
+
+  const badge = $('#valueBadge');
+  if(totalValue > 0){
+    if(estimatedValue > 0){
+      badge.textContent = `≈ ${totalValue.toLocaleString('fr-FR', {maximumFractionDigits:0})} € (dont ~${estimatedValue.toLocaleString('fr-FR', {maximumFractionDigits:0})} € estimés)`;
+    } else {
+      badge.textContent = `≈ ${totalValue.toLocaleString('fr-FR', {maximumFractionDigits:0})} €`;
+    }
+  } else {
+    badge.textContent = '';
+  }
+
+  const missingPriceCount = bottles.filter(b=> b.prix==null && b.prixEstime==null).length;
+  $('#estimateLink').style.display = missingPriceCount > 0 ? 'block' : 'none';
+}
+
+function renderAlerts(){
+  const zone = $('#alertZone');
+  const urgent = bottles.filter(b=>{
+    const s = apogeeStatus(b);
+    return s.key === 'apogee' || s.key === 'tard';
+  }).sort((a,b)=> a.apogeeFin - b.apogeeFin);
+
+  if(urgent.length === 0){ zone.innerHTML=''; return; }
+  const top = urgent[0];
+  const lbl = statusLabel(top);
+  const restCount = urgent.length - 1;
+
+  zone.innerHTML = `
+    <div class="alert-block" id="alertBlockTop" onclick="openPrioritySheet()">
+      <div class="eyebrow">À boire en priorité</div>
+      <div class="bottle-line">
+        <span>${escapeHtml(top.domaine)}${top.millesime? ' '+top.millesime:''}</span>
+        <small style="color:${lbl.color}">${lbl.text}</small>
+      </div>
+      ${restCount > 0 ? `<div class="alert-more">+ ${restCount} autre${restCount>1?'s':''} bouteille${restCount>1?'s':''} à boire en priorité →</div>` : `<div class="alert-more">Voir le détail →</div>`}
+    </div>
+  `;
+}
+
+function renderPrioritySheet(){
+  const content = $('#prioritySheetContent');
+  if(!content) return;
+
+  const urgent = bottles.filter(b=>{
+    const s = apogeeStatus(b);
+    return s.key === 'apogee' || s.key === 'tard';
+  }).sort((a,b)=> a.apogeeFin - b.apogeeFin);
+
+  const rankColor = (i) => i===0 ? 'var(--late)' : i<3 ? 'var(--warn)' : 'var(--gold-dim)';
+
+  content.innerHTML = `
+    <div class="handle"></div>
+    <div class="priority-summary">
+      <div class="num">${urgent.length}</div>
+      <div class="lbl">bouteille${urgent.length>1?'s':''} à boire en priorité, classée${urgent.length>1?'s':''} par urgence</div>
+    </div>
+    ${urgent.map((b,i)=>{
+      const lbl = statusLabel(b);
+      const s = apogeeStatus(b);
+      const fillColor = s.key==='apogee' ? 'var(--warn)' : 'var(--late)';
+      return `
+        <div class="priority-card" data-id="${b.id}">
+          <div class="priority-rank" style="background:${rankColor(i)};">${i+1}</div>
+          <div class="p-body">
+            <div class="p-name">${escapeHtml(b.domaine)}${b.millesime? ' '+b.millesime:''}</div>
+            <div class="p-meta">${[b.region, b.couleur].filter(Boolean).join(' · ')}${(parseInt(b.quantite)||1)>1? ' · ×'+b.quantite : ''}</div>
+            <div class="p-status" style="color:${lbl.color};">${lbl.text}</div>
+            <div class="apogee-gauge" style="margin-top:6px;">
+              <div class="track"><div class="fill" style="width:${Math.max(4,s.pct)}%; background:${fillColor};"></div></div>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('')}
+  `;
+
+  content.querySelectorAll('.priority-card').forEach(card=>{
+    card.addEventListener('click', ()=>{
+      closePrioritySheet();
+      openDetail(card.dataset.id);
+    });
+  });
+}
+
+function openPrioritySheet(){
+  renderPrioritySheet();
+  $('#priorityBackdrop').classList.add('active');
+}
+function closePrioritySheet(){
+  $('#priorityBackdrop').classList.remove('active');
+}
+window.openPrioritySheet = openPrioritySheet;
+
+function renderList(){
+  const list = $('#bottleList');
+  const empty = $('#emptyState');
+  const filterBar = $('#filterBar');
+
+  if(bottles.length === 0){
+    list.innerHTML=''; empty.style.display='block'; filterBar.style.display='none'; return;
+  }
+  empty.style.display='none';
+  filterBar.style.display='block';
+
+  let filtered = activeColorFilter === 'tous' ? [...bottles] : bottles.filter(b=>b.couleur === activeColorFilter);
+
+  if(searchQuery.trim()){
+    const q = searchQuery.trim().toLowerCase();
+    filtered = filtered.filter(b=>
+      (b.domaine||'').toLowerCase().includes(q) ||
+      (b.cuvee||'').toLowerCase().includes(q) ||
+      (b.region||'').toLowerCase().includes(q)
+    );
+  }
+
+  const sorters = {
+    apogee: (a,b)=> a.apogeeFin - b.apogeeFin,
+    nom: (a,b)=> a.domaine.localeCompare(b.domaine, 'fr'),
+    region: (a,b)=> (a.region||'').localeCompare(b.region||'', 'fr'),
+    millesime: (a,b)=> (b.millesime||0) - (a.millesime||0),
+  };
+  filtered.sort(sorters[activeSort] || sorters.apogee);
+
+  if(filtered.length === 0){
+    list.innerHTML = `<div class="empty" style="padding:30px 20px;"><p>Aucune bouteille ne correspond.</p></div>`;
+    return;
+  }
+
+  list.innerHTML = filtered.map(b=>{
+    const s = apogeeStatus(b);
+    const lbl = statusLabel(b);
+    const fillColor = s.key==='garder' ? 'var(--good)' : s.key==='apogee' ? 'var(--warn)' : 'var(--late)';
+    const qty = parseInt(b.quantite)||1;
+    const batchTip = qty >= 3 ? `<div class="batch-tip">🍾 Tu as ${qty} bouteilles — ouvres-en 1 ou 2 pour goûter où elle en est, et garde le reste pour la suite de la fenêtre d'apogée.</div>` : '';
+    return `<div class="bottle-card" onclick="openDetail('${b.id}')">
+      <div class="row1">
+        <div>
+          <div class="domaine">${escapeHtml(b.domaine)}${b.millesime? ' <span style=\"color:var(--muted); font-weight:400;\">'+b.millesime+'</span>':''}</div>
+          ${b.cuvee? `<div class="cuvee">${escapeHtml(b.cuvee)}</div>`:''}
+          <div class="meta">${[b.region, b.couleur, (b.format && b.format!=='bouteille')? formatLabel(b.format):null].filter(Boolean).join(' · ')}${b.emplacement? ' · '+b.emplacement:''}</div>
+        </div>
+        <div class="qty-pill">×${qty}</div>
+      </div>
+      <div class="apogee-gauge">
+        <div class="track"><div class="fill" style="width:${Math.max(4,s.pct)}%; background:${fillColor};"></div></div>
+        <div class="label" style="color:${fillColor};">${lbl.text}</div>
+      </div>
+      ${batchTip}
+    </div>`;
+  }).join('');
+}
+
+function escapeHtml(str){
+  if(!str) return '';
+  const d = document.createElement('div'); d.textContent = str; return d.innerHTML;
+}
+
+function renderHistory(){
+  const list = $('#historyList');
+  const empty = $('#historyEmpty');
+  if(!list) return;
+
+  if(tastings.length === 0){
+    list.innerHTML=''; empty.style.display='block'; return;
+  }
+  empty.style.display='none';
+
+  let filtered = [...tastings];
+  if(historySearchQuery.trim()){
+    const q = historySearchQuery.trim().toLowerCase();
+    filtered = filtered.filter(t => (t.bottleName||'').toLowerCase().includes(q) || (t.commentaire||'').toLowerCase().includes(q));
+  }
+  filtered.sort((a,b)=> new Date(b.date) - new Date(a.date));
+
+  if(filtered.length === 0){
+    list.innerHTML = `<div class="empty" style="padding:30px 20px;"><p>Aucune bouteille bue ne correspond.</p></div>`;
+    return;
+  }
+
+  list.innerHTML = filtered.map(t=>`
+    <div class="history-card">
+      <div class="top-row">
+        <div class="name">${escapeHtml(t.bottleName)}</div>
+        <div class="date">${new Date(t.date).toLocaleDateString('fr-FR')}</div>
+      </div>
+      ${t.note != null ? `<div class="note">${t.note}/10</div>` : ''}
+      ${t.commentaire ? `<div class="comment">${escapeHtml(t.commentaire)}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+// ---------- Statistiques ----------
+const COULEUR_LABELS = { rouge:'Rouge', blanc:'Blanc', rose:'Rosé', petillant:'Pétillant' };
+
+function renderStats(){
+  const content = $('#statsContent');
+  const empty = $('#statsEmpty');
+  if(!content) return;
+
+  if(bottles.length === 0 && tastings.length === 0){
+    content.innerHTML = ''; empty.style.display = 'block'; return;
+  }
+  empty.style.display = 'none';
+
+  const totalBottles = bottles.reduce((s,b)=>s+(parseInt(b.quantite)||1),0);
+  const { known, estimated, total } = computeTotalValue();
+  const tastingsWithNote = tastings.filter(t=>t.note!=null);
+  const avgNote = tastingsWithNote.length ? (tastingsWithNote.reduce((s,t)=>s+t.note,0)/tastingsWithNote.length) : null;
+
+  // Répartition couleur
+  const colorCounts = {};
+  bottles.forEach(b=>{ const c = b.couleur||'rouge'; colorCounts[c] = (colorCounts[c]||0) + (parseInt(b.quantite)||1); });
+  const colorRows = Object.entries(colorCounts).sort((a,b)=>b[1]-a[1]);
+
+  // Répartition région (top 5)
+  const regionCounts = {};
+  bottles.forEach(b=>{ const r = (b.region||'').trim(); if(r) regionCounts[r] = (regionCounts[r]||0) + (parseInt(b.quantite)||1); });
+  const regionRows = Object.entries(regionCounts).sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+  const maxColorCount = Math.max(1, ...colorRows.map(r=>r[1]));
+  const maxRegionCount = Math.max(1, ...regionRows.map(r=>r[1]));
+
+  content.innerHTML = `
+    <div class="stat-cards">
+      <div class="stat-card"><div class="num">${totalBottles}</div><div class="lbl">bouteilles</div></div>
+      <div class="stat-card"><div class="num">${tastings.length}</div><div class="lbl">dégustées</div></div>
+      <div class="stat-card"><div class="num">${avgNote!=null? avgNote.toFixed(1) : '—'}</div><div class="lbl">note moyenne</div></div>
+    </div>
+
+    ${colorRows.length ? `
+      <div class="stat-block">
+        <div class="stat-block-title">Répartition par couleur</div>
+        ${colorRows.map(([c,n])=>`
+          <div class="stat-row">
+            <div class="top"><span class="name">${COULEUR_LABELS[c]||c}</span><span class="val">${n}</span></div>
+            <div class="track"><div class="fill" style="width:${Math.max(4,(n/maxColorCount)*100)}%;"></div></div>
+          </div>
+        `).join('')}
+      </div>
+    ` : ''}
+
+    ${regionRows.length ? `
+      <div class="stat-block">
+        <div class="stat-block-title">Régions les plus représentées</div>
+        ${regionRows.map(([r,n])=>`
+          <div class="stat-row">
+            <div class="top"><span class="name">${escapeHtml(r)}</span><span class="val">${n}</span></div>
+            <div class="track"><div class="fill" style="width:${Math.max(4,(n/maxRegionCount)*100)}%;"></div></div>
+          </div>
+        `).join('')}
+      </div>
+    ` : ''}
+
+    <div class="stat-block">
+      <div class="stat-block-title">Valeur marchande de la cave</div>
+      <div class="stat-cards" style="margin-bottom:12px;">
+        <div class="stat-card"><div class="num">${known.toLocaleString('fr-FR',{maximumFractionDigits:0})} €</div><div class="lbl">prix connus</div></div>
+        <div class="stat-card"><div class="num">${estimated.toLocaleString('fr-FR',{maximumFractionDigits:0})} €</div><div class="lbl">estimés (IA)</div></div>
+      </div>
+      <div id="valuationChartZone"></div>
+      <button class="btn btn-ghost" id="btnRefreshValuation" style="margin-top:10px;">Actualiser la valeur marchande</button>
+      <div id="valuationStatus" class="wine-info-fetch-status"></div>
+    </div>
+
+    <div class="stat-block">
+      <div class="stat-block-title">Export</div>
+      <button class="btn btn-ghost" id="btnExportCave" ${bottles.length===0? 'disabled':''}>📄 Exporter ma cave (tableur .csv)</button>
+      <div style="font-size:11px; color:var(--muted); margin-top:6px; line-height:1.5;">Génère un fichier compatible Excel, Google Sheets ou Numbers avec toutes tes bouteilles.</div>
+    </div>
+  `;
+
+  renderValuationChart();
+
+  const btn = $('#btnRefreshValuation');
+  if(btn) btn.addEventListener('click', refreshMarketValue);
+
+  const exportBtn = $('#btnExportCave');
+  if(exportBtn) exportBtn.addEventListener('click', exportCaveCSV);
+}
+
+// ---------- Export tableur ----------
+function csvEscape(val){
+  const s = (val === null || val === undefined) ? '' : String(val);
+  if(/[;"\n]/.test(s)){
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
+
+function exportCaveCSV(){
+  const headers = [
+    'Domaine','Cuvée','Millésime','Région','Cépage','Couleur','Format',
+    'Quantité','Prix connu (€)','Prix estimé (€)','Emplacement',
+    'Apogée début','Apogée fin','Statut apogée','Descriptif','Dégustation',
+    'Note critique','Date d\'ajout'
+  ];
+
+  const rows = bottles.map(b=>{
+    const lbl = statusLabel(b);
+    return [
+      b.domaine || '',
+      b.cuvee || '',
+      b.millesime || '',
+      b.region || '',
+      b.cepage || '',
+      COULEUR_LABELS[b.couleur] || b.couleur || '',
+      formatLabel(b.format || 'bouteille'),
+      b.quantite || 1,
+      b.prix != null ? b.prix : '',
+      b.prixEstime != null ? b.prixEstime : '',
+      b.emplacement || '',
+      b.apogeeDebut || '',
+      b.apogeeFin || '',
+      lbl.text,
+      b.descriptif || '',
+      b.degustation || '',
+      b.noteCritique || '',
+      b.dateAjout ? new Date(b.dateAjout).toLocaleDateString('fr-FR') : ''
+    ];
+  });
+
+  const csvLines = [headers, ...rows].map(row => row.map(csvEscape).join(';'));
+  const csvContent = '\uFEFF' + csvLines.join('\r\n');
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const user = auth.currentUser;
+  const profileSlug = user && user.displayName ? user.displayName.toLowerCase().replace(/[^a-z0-9]+/g,'-') : 'cave';
+  const dateSlug = new Date().toISOString().slice(0,10);
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `carafe-${profileSlug}-${dateSlug}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function renderValuationChart(){
+  const zone = $('#valuationChartZone');
+  if(!zone) return;
+  if(valuationHistory.length < 2){
+    zone.innerHTML = `<div class="valuation-empty">Clique sur "Actualiser la valeur marchande" pour commencer le suivi périodique de la valeur de ta cave dans le temps.</div>`;
+    return;
+  }
+  zone.innerHTML = `<div class="valuation-chart-wrap">${buildValuationChart(valuationHistory)}</div>`;
+}
+
+function buildValuationChart(history){
+  const width = 320, height = 110, padLeft = 34, padRight = 12, padTop = 14, padBottom = 22;
+  const values = history.map(h=>h.total);
+  const minV = Math.min(...values), maxV = Math.max(...values);
+  const range = (maxV - minV) || 1;
+  const xForI = (i) => padLeft + (i/(history.length-1)) * (width - padLeft - padRight);
+  const yForV = (v) => padTop + (height - padTop - padBottom) * (1 - ((v - minV) / range));
+
+  let d = '';
+  history.forEach((h,i)=>{
+    d += (i===0?'M':'L') + xForI(i).toFixed(1) + ' ' + yForV(h.total).toFixed(1) + ' ';
+  });
+
+  const firstDate = new Date(history[0].date).toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit'});
+  const lastDate = new Date(history[history.length-1].date).toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit'});
+  const lastVal = values[values.length-1];
+
+  return `
+    <svg viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+      <text x="4" y="${(yForV(maxV)+3).toFixed(1)}" font-size="9" fill="var(--muted)" font-family="Inter, sans-serif">${Math.round(maxV)}€</text>
+      <text x="4" y="${(yForV(minV)+3).toFixed(1)}" font-size="9" fill="var(--muted)" font-family="Inter, sans-serif">${Math.round(minV)}€</text>
+      <line x1="${padLeft}" y1="${height-padBottom}" x2="${width-padRight}" y2="${height-padBottom}" stroke="var(--line)" stroke-width="1"/>
+      <path d="${d.trim()}" fill="none" stroke="var(--gold)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      ${history.map((h,i)=>`<circle cx="${xForI(i).toFixed(1)}" cy="${yForV(h.total).toFixed(1)}" r="2.5" fill="var(--gold)"/>`).join('')}
+      <text x="${padLeft}" y="${height-6}" font-size="9" fill="var(--muted)" text-anchor="start" font-family="Inter, sans-serif">${firstDate}</text>
+      <text x="${width-padRight}" y="${height-6}" font-size="9" fill="var(--muted)" text-anchor="end" font-family="Inter, sans-serif">${lastDate}</text>
+    </svg>
+    <div style="font-size:11px; color:var(--muted); margin-top:2px;">Dernière valeur suivie : ${Math.round(lastVal).toLocaleString('fr-FR')} € (${history.length} relevés)</div>
+  `;
+}
+
+function recordValuationSnapshot(){
+  const { total } = computeTotalValue();
+  valuationHistory.push({ date: new Date().toISOString(), total });
+  if(valuationHistory.length > 30) valuationHistory = valuationHistory.slice(-30);
+  saveValuationHistory();
+}
+
+async function refreshMarketValue(){
+  const btn = $('#btnRefreshValuation');
+  const statusEl = $('#valuationStatus');
+  const targets = bottles.filter(b => b.prix == null);
+
+  if(btn){ btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Actualisation en cours…'; }
+  if(statusEl) statusEl.textContent = '';
+
+  try{
+    if(targets.length > 0){
+      const listDesc = targets.map(b=>
+        `- id:${b.id} | ${b.domaine} ${b.cuvee||''} ${b.millesime||''} | ${b.region||'région inconnue'} | ${b.couleur} | ${formatLabel(b.format||'bouteille')}`
+      ).join('\n');
+
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 1800,
+          tools: [{ type: "web_search_20250305", name: "web_search" }],
+          messages: [{
+            role: "user",
+            content: `Voici une liste de vins de ma cave dont je n'ai pas de prix d'achat confirmé :\n${listDesc}\n\nPour chacun, cherche sur le web une estimation actualisée du prix moyen du marché en euros pour une bouteille de 75cl (adapte si le format indiqué est différent). Si tu ne trouves aucune info précise pour une référence, donne une estimation raisonnable basée sur des vins comparables. Réponds à la toute fin UNIQUEMENT avec un JSON array, sans texte autour, sans markdown, au format exact : [{"id":"","prixEstimeEuros":0}]`
+          }]
+        })
+      });
+      const data = await response.json();
+      const raw = extractApiText(data).replace(/```json|```/g,'').trim();
+      const jsonMatch = raw.match(/\[[\s\S]*\]/);
+      const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+
+      parsed.forEach(item=>{
+        const b = bottles.find(x=>x.id === item.id);
+        if(b && item.prixEstimeEuros != null){
+          b.prixEstime = parseFloat(item.prixEstimeEuros);
+        }
+      });
+      await saveBottles();
+    }
+
+    recordValuationSnapshot();
+    render();
+  }catch(err){
+    if(statusEl) statusEl.innerHTML = '<span style="color:var(--late);">Actualisation impossible, réessaie plus tard.</span>';
+    if(btn){ btn.disabled = false; btn.textContent = 'Actualiser la valeur marchande'; }
+  }
+}
+
+// ---------- Filtres / tri / recherche ----------
+$('#searchInput').addEventListener('input', (e)=>{
+  searchQuery = e.target.value;
+  renderList();
+});
+$('#historySearchInput').addEventListener('input', (e)=>{
+  historySearchQuery = e.target.value;
+  renderHistory();
+});
+$('#colorChips').addEventListener('click', (e)=>{
+  const chip = e.target.closest('.chip');
+  if(!chip) return;
+  $$('#colorChips .chip').forEach(c=>c.classList.remove('active'));
+  chip.classList.add('active');
+  activeColorFilter = chip.dataset.color;
+  renderList();
+});
+$('#sortSelect').addEventListener('change', (e)=>{
+  activeSort = e.target.value;
+  renderList();
+});
+
+// ---------- Tabs ----------
+$$('.tab').forEach(tab=>{
+  tab.addEventListener('click', ()=>{
+    $$('.tab').forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    $$('.view').forEach(v=>v.classList.remove('active'));
+    $('#view-'+tab.dataset.tab).classList.add('active');
+  });
+});
+
+// ---------- Add bottle sheet ----------
+$('#fabAdd').addEventListener('click', ()=>{
+  resetAddForm();
+  $('#addBackdrop').classList.add('active');
+});
+$('#btnCancelAdd').addEventListener('click', ()=>{
+  $('#addBackdrop').classList.remove('active');
+});
+$('#addBackdrop').addEventListener('click', (e)=>{
+  if(e.target.id === 'addBackdrop') $('#addBackdrop').classList.remove('active');
+});
+
+function resetAddForm(){
+  ['f-domaine','f-cuvee','f-millesime','f-region','f-cepage','f-emplacement','f-apogee-debut','f-apogee-fin','f-prix'].forEach(id=> $('#'+id).value='');
+  $('#f-quantite').value = 1;
+  $('#f-couleur').value = 'rouge';
+  $('#f-format').value = 'bouteille';
+  $('#photoZone').classList.remove('has-img');
+  $('#photoZone').innerHTML = `<span id="photoZoneText">📷 Photographier l'étiquette</span><input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none;">`;
+  bindPhotoZone();
+  $('#scanStatus').textContent='';
+  scannedPhotoBase64 = null;
+  scannedPhotoMedia = null;
+  scannedPhotoDataUrl = null;
+}
+
+function bindPhotoZone(){
+  const zone = $('#photoZone');
+  const input = $('#photoInput');
+  zone.onclick = ()=> input.click();
+  input.onchange = handlePhotoSelected;
+}
+bindPhotoZone();
+
+// Compresse une image (redimensionnement + JPEG) pour un stockage léger
+function compressImageFile(file, maxWidth = 640, quality = 0.72){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      const img = new Image();
+      img.onload = ()=>{
+        let w = img.width, h = img.height;
+        if(w > maxWidth){ h = Math.round(h * (maxWidth / w)); w = maxWidth; }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = reader.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function handlePhotoSelected(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  try{
+    const compressedDataUrl = await compressImageFile(file);
+    scannedPhotoDataUrl = compressedDataUrl;
+    scannedPhotoBase64 = compressedDataUrl.split(',')[1];
+    scannedPhotoMedia = 'image/jpeg';
+
+    $('#photoZone').classList.add('has-img');
+    $('#photoZone').innerHTML = `<img src="${compressedDataUrl}"><div class="scan-tag" id="scanTag">Analyse en cours…</div>`;
+
+    await identifyLabel(scannedPhotoBase64, scannedPhotoMedia);
+  }catch(err){
+    $('#scanStatus').innerHTML = `<span style="color:var(--late);">Impossible de traiter cette photo. Réessaie ou complète manuellement.</span>`;
+  }
+}
+
+async function identifyLabel(base64, mediaType){
+  $('#scanStatus').innerHTML = `<span class="spin"></span> Lecture de l'étiquette…`;
+  try{
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 500,
+        messages: [{
+          role: "user",
+          content: [
+            { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
+            { type: "text", text: "Voici la photo d'une étiquette de bouteille de vin. Identifie le domaine/producteur, la cuvée (si mentionnée), le millésime, la région/appellation, le ou les cépages si mentionnés sur l'étiquette, et la couleur probable (rouge, blanc, rose, ou petillant). Réponds UNIQUEMENT avec un objet JSON, sans aucun texte autour, sans balises markdown, au format exact : {\"domaine\":\"\",\"cuvee\":\"\",\"millesime\":\"\",\"region\":\"\",\"cepage\":\"\",\"couleur\":\"\"}. Si une information n'est pas visible ou incertaine, laisse la valeur en chaîne vide." }
+          ]
+        }]
+      })
+    });
+    const data = await response.json();
+    const textBlock = data.content.find(c=>c.type==='text');
+    let raw = textBlock ? textBlock.text : '{}';
+    raw = raw.replace(/```json|```/g,'').trim();
+    const parsed = JSON.parse(raw);
+
+    if(parsed.domaine) $('#f-domaine').value = parsed.domaine;
+    if(parsed.cuvee) $('#f-cuvee').value = parsed.cuvee;
+    if(parsed.millesime) $('#f-millesime').value = parsed.millesime;
+    if(parsed.region) $('#f-region').value = parsed.region;
+    if(parsed.cepage) $('#f-cepage').value = parsed.cepage;
+    if(parsed.couleur && ['rouge','blanc','rose','petillant'].includes(parsed.couleur)) $('#f-couleur').value = parsed.couleur;
+
+    const tag = $('#scanTag');
+    if(tag) tag.textContent = 'Étiquette lue ✓';
+    $('#scanStatus').textContent = 'Vérifie et complète les champs ci-dessous si besoin.';
+  }catch(err){
+    const tag = $('#scanTag');
+    if(tag) tag.textContent = 'Lecture impossible';
+    $('#scanStatus').innerHTML = `<span style="color:var(--late);">Je n'ai pas réussi à lire l'étiquette automatiquement. Complète les champs manuellement.</span>`;
+  }
+}
+
+$('#btnSaveBottle').addEventListener('click', async ()=>{
+  const domaine = $('#f-domaine').value.trim();
+  if(!domaine){ alert('Le nom du domaine est nécessaire.'); return; }
+
+  const millesime = $('#f-millesime').value ? parseInt($('#f-millesime').value) : null;
+  const region = $('#f-region').value.trim();
+  const couleur = $('#f-couleur').value;
+
+  let apogeeDebut = $('#f-apogee-debut').value ? parseInt($('#f-apogee-debut').value) : null;
+  let apogeeFin = $('#f-apogee-fin').value ? parseInt($('#f-apogee-fin').value) : null;
+  if(!apogeeDebut || !apogeeFin){
+    const est = estimateApogee(millesime, region, couleur);
+    apogeeDebut = apogeeDebut || est.debut;
+    apogeeFin = apogeeFin || est.fin;
+  }
+
+  const bottle = {
+    id: 'b_' + Date.now(),
+    domaine,
+    cuvee: $('#f-cuvee').value.trim(),
+    millesime,
+    region,
+    cepage: $('#f-cepage').value.trim() || null,
+    couleur,
+    format: $('#f-format').value,
+    quantite: parseInt($('#f-quantite').value) || 1,
+    prix: $('#f-prix').value ? parseFloat($('#f-prix').value) : null,
+    emplacement: $('#f-emplacement').value.trim(),
+    apogeeDebut, apogeeFin,
+    photo: scannedPhotoDataUrl || null,
+    dateAjout: new Date().toISOString()
+  };
+
+  bottles.push(bottle);
+  await saveBottles();
+  $('#addBackdrop').classList.remove('active');
+  render();
+});
+
+// ---------- Detail sheet ----------
+const wineInfoLoading = new Set();
+
+function openDetail(id){
+  currentDetailId = id;
+  renderDetailView(id);
+  const b = bottles.find(x=>x.id===id);
+  if(b && !b.descriptif && !b.degustation && !b.noteCritique && !wineInfoLoading.has(id)){
+    fetchWineInfo(id);
+  }
+}
+
+function renderDetailView(id){
+  const b = bottles.find(x=>x.id===id);
+  if(!b) return;
+  const lbl = statusLabel(b);
+  const relatedTastings = tastings.filter(t=>t.bottleId===id).sort((a,b2)=> new Date(b2.date)-new Date(a.date));
+  const qty = parseInt(b.quantite)||1;
+  const batchTip = qty >= 3 ? `<div class="batch-tip">🍾 Tu as ${qty} bouteilles — ouvres-en 1 ou 2 pour goûter où elle en est, et garde le reste.</div>` : '';
+
+  const content = `
+    <div class="handle"></div>
+    ${b.photo ? `<img src="${b.photo}" class="bottle-photo" alt="Photo de la bouteille">` : ''}
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+      <div>
+        <h2 class="serif">${escapeHtml(b.domaine)}${b.millesime? ' '+b.millesime:''}</h2>
+        ${b.cuvee? `<div class="cuvee" style="margin-bottom:6px;">${escapeHtml(b.cuvee)}</div>`:''}
+      </div>
+      <button class="btn btn-ghost" id="btnEditBottle" style="width:auto; padding:8px 14px; margin-top:2px; white-space:nowrap;">Modifier</button>
+    </div>
+    <div class="subtitle">${[b.region, b.couleur, (b.format && b.format!=='bouteille')? formatLabel(b.format):null].filter(Boolean).join(' · ')}${b.emplacement? ' · '+b.emplacement:''}${b.prix!=null? ' · '+b.prix.toLocaleString('fr-FR')+' €/bout.' : (b.prixEstime!=null? ' · ~'+b.prixEstime.toLocaleString('fr-FR')+' €/bout. (estimé)' : '')}</div>
+    ${b.cepage ? `<div class="subtitle" style="margin-top:-10px; color:var(--gold);">${escapeHtml(b.cepage)}</div>` : ''}
+
+    <div style="margin: 16px 0;">
+      <div class="apogee-gauge">
+        <div class="track"><div class="fill" style="width:${Math.max(4,apogeeStatus(b).pct)}%; background:${lbl.color};"></div></div>
+        <div class="label" style="color:${lbl.color};">${lbl.text}</div>
+      </div>
+      <div style="font-size:12px; color:var(--muted); margin-top:6px;">Fenêtre d'apogée : ${b.apogeeDebut} – ${b.apogeeFin}</div>
+      ${batchTip}
+      <div class="apogee-chart-wrap">${buildApogeeChart(b)}</div>
+      <div class="apogee-chart-legend">
+        <span>Jeunesse → Maladie de la bouteille → Maturation avec phases de replis → Apogée → Déclin</span>
+      </div>
+      <div class="apogee-chart-legend" style="margin-top:2px;">
+        <span><span class="dot" style="background:${lbl.color};"></span>Position aujourd'hui</span>
+      </div>
+    </div>
+
+    <div class="section-title">Fiche du vin</div>
+    ${wineInfoLoading.has(id) ? `
+      <div class="wine-info-fetch-status"><span class="spin"></span> Recherche des informations sur ce vin…</div>
+    ` : (b.descriptif || b.degustation || b.noteCritique ? `
+      <div class="wine-info-block">
+        ${b.descriptif ? `<div class="wi-label">Descriptif</div><div class="wi-text">${escapeHtml(b.descriptif)}</div>` : ''}
+        ${b.degustation ? `<div class="wi-label">Dégustation</div><div class="wi-text">${escapeHtml(b.degustation)}</div>` : ''}
+        ${b.noteCritique ? `<div class="wi-label">Note trouvée</div><div class="wi-note">${escapeHtml(b.noteCritique)}</div>` : ''}
+      </div>
+      <button class="btn btn-ghost" id="btnFetchWineInfo" style="margin-bottom:6px;">Relancer la recherche</button>
+    ` : `
+      <button class="btn btn-ghost" id="btnFetchWineInfo" style="margin-bottom:6px;">Rechercher descriptif, dégustation et note sur le web</button>
+    `)}
+    <div id="wineInfoStatus" class="wine-info-fetch-status"></div>
+
+    <div class="section-title">Stock</div>
+    <div class="field-row">
+      <div class="field">
+        <label>Quantité restante</label>
+        <input type="number" id="d-quantite" value="${b.quantite}" min="0">
+      </div>
+      <div class="field">
+        <label>Emplacement</label>
+        <input type="text" id="d-emplacement" value="${escapeHtml(b.emplacement||'')}">
+      </div>
+    </div>
+    <button class="btn btn-ghost" id="btnUpdateStock" style="margin-bottom:6px;">Mettre à jour</button>
+
+    <div class="section-title">Ouvrir une bouteille</div>
+    <div class="field">
+      <label>Note (sur 10)</label>
+      <input type="number" id="t-note" min="0" max="10" placeholder="ex : 8">
+    </div>
+    <div class="field">
+      <label>Commentaire</label>
+      <textarea id="t-commentaire" placeholder="ce que tu en as pensé…"></textarea>
+    </div>
+    <button class="btn btn-gold" id="btnLogTasting">Enregistrer la dégustation (−1 bouteille)</button>
+    <div style="font-size:11px; color:var(--muted); margin-top:6px;">Quand le stock atteint 0, la référence disparaît de ta cave et bascule automatiquement dans l'onglet Historique.</div>
+
+    ${relatedTastings.length ? `
+      <div class="section-title">Historique de cette référence</div>
+      ${relatedTastings.map(t=>`
+        <div class="tasting-item">
+          <div class="d">${new Date(t.date).toLocaleDateString('fr-FR')}${t.note!=null? ' · '+t.note+'/10':''}</div>
+          ${t.commentaire? `<div>${escapeHtml(t.commentaire)}</div>`:''}
+        </div>`).join('')}
+    ` : ''}
+
+    <button class="btn btn-danger" id="btnDeleteBottle">Supprimer cette référence</button>
+  `;
+  $('#detailSheetContent').innerHTML = content;
+  $('#detailBackdrop').classList.add('active');
+
+  $('#btnEditBottle').addEventListener('click', ()=> renderDetailEdit(id));
+
+  const fetchBtn = $('#btnFetchWineInfo');
+  if(fetchBtn) fetchBtn.addEventListener('click', ()=> fetchWineInfo(id));
+
+  $('#btnUpdateStock').addEventListener('click', async ()=>{
+    b.quantite = parseInt($('#d-quantite').value) || 0;
+    b.emplacement = $('#d-emplacement').value.trim();
+    await saveBottles();
+    render();
+    $('#detailBackdrop').classList.remove('active');
+  });
+
+  $('#btnLogTasting').addEventListener('click', async ()=>{
+    const note = $('#t-note').value ? parseInt($('#t-note').value) : null;
+    const commentaire = $('#t-commentaire').value.trim();
+    tastings.push({ id:'t_'+Date.now(), bottleId:id, bottleName: b.domaine + (b.millesime? ' '+b.millesime:''), date: new Date().toISOString(), note, commentaire });
+    await saveTastings();
+    b.quantite = Math.max(0, (parseInt(b.quantite)||1) - 1);
+    if(b.quantite === 0){
+      bottles = bottles.filter(x=>x.id!==id);
+    }
+    await saveBottles();
+    render();
+    $('#detailBackdrop').classList.remove('active');
+  });
+
+  $('#btnDeleteBottle').addEventListener('click', async ()=>{
+    if(!confirm('Supprimer définitivement cette référence de ta cave ?')) return;
+    bottles = bottles.filter(x=>x.id!==id);
+    await saveBottles();
+    render();
+    $('#detailBackdrop').classList.remove('active');
+  });
+}
+
+function bindEditPhotoZone(){
+  const zone = $('#editPhotoZone');
+  const input = $('#editPhotoInput');
+  if(!zone || !input) return;
+  zone.onclick = ()=> input.click();
+  input.onchange = async (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    try{
+      const compressedDataUrl = await compressImageFile(file);
+      editPhotoDataUrl = compressedDataUrl;
+      $('#editPhotoZone').classList.add('has-img');
+      $('#editPhotoZone').innerHTML = `<img src="${compressedDataUrl}"><div class="scan-tag">Changer la photo</div><input type="file" id="editPhotoInput" accept="image/*" capture="environment" style="display:none;">`;
+      bindEditPhotoZone();
+    }catch(err){
+      alert("Impossible de traiter cette photo.");
+    }
+  };
+}
+
+function renderDetailEdit(id){
+  const b = bottles.find(x=>x.id===id);
+  if(!b) return;
+  editPhotoDataUrl = b.photo || null;
+
+  const content = `
+    <div class="handle"></div>
+    <h2 class="serif">Modifier la référence</h2>
+    <p class="subtitle">Corrige les informations de cette bouteille.</p>
+
+    <div class="photo-zone ${b.photo? 'has-img':''}" id="editPhotoZone">
+      ${b.photo
+        ? `<img src="${b.photo}"><div class="scan-tag">Changer la photo</div>`
+        : `<span>📷 Ajouter une photo de la bouteille</span>`}
+      <input type="file" id="editPhotoInput" accept="image/*" capture="environment" style="display:none;">
+    </div>
+
+    <div class="field">
+      <label>Domaine</label>
+      <input type="text" id="e-domaine" value="${escapeHtml(b.domaine||'')}">
+    </div>
+    <div class="field">
+      <label>Cuvée</label>
+      <input type="text" id="e-cuvee" value="${escapeHtml(b.cuvee||'')}">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Millésime</label>
+        <input type="number" id="e-millesime" value="${b.millesime||''}">
+      </div>
+      <div class="field">
+        <label>Couleur</label>
+        <select id="e-couleur">
+          <option value="rouge" ${b.couleur==='rouge'?'selected':''}>Rouge</option>
+          <option value="blanc" ${b.couleur==='blanc'?'selected':''}>Blanc</option>
+          <option value="rose" ${b.couleur==='rose'?'selected':''}>Rosé</option>
+          <option value="petillant" ${b.couleur==='petillant'?'selected':''}>Pétillant</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Région / appellation</label>
+      <input type="text" id="e-region" value="${escapeHtml(b.region||'')}">
+    </div>
+    <div class="field">
+      <label>Cépage(s)</label>
+      <input type="text" id="e-cepage" value="${escapeHtml(b.cepage||'')}">
+    </div>
+    <div class="field">
+      <label>Format</label>
+      <select id="e-format">
+        <option value="demi" ${b.format==='demi'?'selected':''}>Demi-bouteille (37,5 cl)</option>
+        <option value="bouteille" ${(!b.format||b.format==='bouteille')?'selected':''}>Bouteille (75 cl)</option>
+        <option value="magnum" ${b.format==='magnum'?'selected':''}>Magnum (1,5 l)</option>
+        <option value="jeroboam" ${b.format==='jeroboam'?'selected':''}>Jéroboam (3 l)</option>
+        <option value="mathusalem" ${b.format==='mathusalem'?'selected':''}>Mathusalem (6 l)</option>
+        <option value="salmanazar" ${b.format==='salmanazar'?'selected':''}>Salmanazar (9 l)</option>
+      </select>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Quantité</label>
+        <input type="number" id="e-quantite" value="${b.quantite||1}" min="0">
+      </div>
+      <div class="field">
+        <label>Prix d'achat (€ / bouteille)</label>
+        <input type="number" id="e-prix" value="${b.prix!=null? b.prix:''}" min="0" step="0.01">
+      </div>
+    </div>
+    <div class="field">
+      <label>Emplacement cave</label>
+      <input type="text" id="e-emplacement" value="${escapeHtml(b.emplacement||'')}">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Apogée — début</label>
+        <input type="number" id="e-apogee-debut" value="${b.apogeeDebut||''}">
+      </div>
+      <div class="field">
+        <label>Apogée — fin</label>
+        <input type="number" id="e-apogee-fin" value="${b.apogeeFin||''}">
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="btnSaveEdit">Enregistrer les modifications</button>
+    <button class="btn btn-ghost" id="btnCancelEdit">Annuler</button>
+  `;
+  $('#detailSheetContent').innerHTML = content;
+
+  bindEditPhotoZone();
+
+  $('#btnCancelEdit').addEventListener('click', ()=> renderDetailView(id));
+
+  $('#btnSaveEdit').addEventListener('click', async ()=>{
+    const domaine = $('#e-domaine').value.trim();
+    if(!domaine){ alert('Le nom du domaine est nécessaire.'); return; }
+
+    b.domaine = domaine;
+    b.cuvee = $('#e-cuvee').value.trim();
+    b.millesime = $('#e-millesime').value ? parseInt($('#e-millesime').value) : null;
+    b.couleur = $('#e-couleur').value;
+    b.format = $('#e-format').value;
+    b.region = $('#e-region').value.trim();
+    b.cepage = $('#e-cepage').value.trim() || null;
+    b.quantite = parseInt($('#e-quantite').value) || 0;
+    b.prix = $('#e-prix').value ? parseFloat($('#e-prix').value) : null;
+    b.emplacement = $('#e-emplacement').value.trim();
+    b.apogeeDebut = $('#e-apogee-debut').value ? parseInt($('#e-apogee-debut').value) : b.apogeeDebut;
+    b.apogeeFin = $('#e-apogee-fin').value ? parseInt($('#e-apogee-fin').value) : b.apogeeFin;
+    b.photo = editPhotoDataUrl || null;
+
+    if(b.quantite === 0){
+      if(confirm("Quantité à 0 — supprimer cette référence de la cave ?")){
+        bottles = bottles.filter(x=>x.id!==id);
+        await saveBottles();
+        render();
+        $('#detailBackdrop').classList.remove('active');
+        return;
+      } else {
+        b.quantite = 1;
+      }
+    }
+
+    await saveBottles();
+    render();
+    renderDetailView(id);
+  });
+}
+window.openDetail = openDetail;
+
+$('#detailBackdrop').addEventListener('click', (e)=>{
+  if(e.target.id === 'detailBackdrop') $('#detailBackdrop').classList.remove('active');
+});
+
+$('#profileSwitch').addEventListener('click', openProfileSheet);
+$('#profileBackdrop').addEventListener('click', (e)=>{
+  if(e.target.id === 'profileBackdrop') closeProfileSheet();
+});
+$('#priorityBackdrop').addEventListener('click', (e)=>{
+  if(e.target.id === 'priorityBackdrop') closePrioritySheet();
+});
+
+// ---------- Accord repas ----------
+$('#btnAccord').addEventListener('click', async ()=>{
+  const plat = $('#plat').value.trim();
+  const convives = $('#convives').value || '2';
+  const occasion = $('#occasion').value;
+  const errorEl = $('#accordError');
+  const resultEl = $('#accordResult');
+  errorEl.textContent = '';
+  resultEl.innerHTML = '';
+
+  if(!plat){ errorEl.textContent = 'Décris ce que tu manges pour avoir une proposition.'; return; }
+
+  const btn = $('#btnAccord');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> Je cherche…';
+
+  const hasCellar = bottles.length > 0;
+  const cellarSummary = hasCellar ? bottles.map(b=>{
+    const lbl = statusLabel(b);
+    return `- id:${b.id} | ${b.domaine} ${b.cuvee||''} ${b.millesime||''} | ${b.region||'région inconnue'} | ${b.couleur} | quantité:${b.quantite} | statut apogée: ${lbl.text}`;
+  }).join('\n') : '';
+
+  const occasionText = occasion === 'special' ? 'occasion spéciale' : 'repas du quotidien';
+
+  const promptText = hasCellar
+    ? `Voici ma cave à vin :
+${cellarSummary}
+
+Ce soir je mange : ${plat}
+Nombre de convives : ${convives}
+Occasion : ${occasionText}
+
+Regarde si une bouteille de cette cave accompagnerait vraiment bien ce repas, en tenant compte du fait qu'une bouteille proche ou dépassant son apogée devrait être priorisée si elle convient, et qu'une occasion spéciale peut justifier d'ouvrir une bouteille plus prestigieuse encore en fenêtre de garde.
+
+Si une bouteille de la cave convient bien, indique son id dans "bottleId" et explique pourquoi dans "raison", laisse "suggestions" vide.
+Si AUCUNE bouteille de la cave ne convient vraiment bien à ce plat, laisse "bottleId" vide et propose à la place 2 à 3 suggestions de vins (cépage, appellation ou style — pas une marque commerciale précise) qui accompagneraient bien ce repas, dans "suggestions".
+
+Réponds UNIQUEMENT en JSON, sans texte autour, sans markdown, au format exact : {"bottleId":"","raison":"","suggestions":[{"nom":"","raison":""}]}. Les raisons doivent faire 2 à 3 phrases maximum, en français.`
+    : `Je n'ai actuellement aucune bouteille enregistrée dans ma cave.
+
+Ce soir je mange : ${plat}
+Nombre de convives : ${convives}
+Occasion : ${occasionText}
+
+Propose 2 à 3 suggestions de vins (cépage, appellation ou style — pas une marque commerciale précise) qui accompagneraient bien ce repas, dans "suggestions". Laisse "bottleId" vide.
+
+Réponds UNIQUEMENT en JSON, sans texte autour, sans markdown, au format exact : {"bottleId":"","raison":"","suggestions":[{"nom":"","raison":""}]}. Les raisons doivent faire 2 à 3 phrases maximum, en français.`;
+
+  try{
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 700,
+        messages: [{ role: "user", content: promptText }]
+      })
+    });
+    const data = await response.json();
+    const textBlock = data.content.find(c=>c.type==='text');
+    let raw = textBlock ? textBlock.text : '{}';
+    raw = raw.replace(/```json|```/g,'').trim();
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+    const picked = parsed.bottleId ? bottles.find(b=>b.id === parsed.bottleId) : null;
+
+    if(picked){
+      resultEl.innerHTML = `
+        <div class="accord-result">
+          <div class="pick-name">${escapeHtml(picked.domaine)}${picked.millesime? ' '+picked.millesime:''}${picked.cuvee? ' — '+escapeHtml(picked.cuvee):''}</div>
+          <div class="pick-why">${escapeHtml(parsed.raison || '')}</div>
+        </div>
+      `;
+    } else if(parsed.suggestions && parsed.suggestions.length){
+      resultEl.innerHTML = `
+        <div class="accord-suggest-intro">${hasCellar ? "Aucune bouteille de ta cave ne convient vraiment bien à ce plat — voici quelques pistes à chercher :" : "Voici quelques suggestions de vins pour ce repas :"}</div>
+        ${parsed.suggestions.map(s=>`
+          <div class="accord-result" style="margin-bottom:10px;">
+            <div class="pick-name">${escapeHtml(s.nom||'')}</div>
+            <div class="pick-why">${escapeHtml(s.raison||'')}</div>
+          </div>
+        `).join('')}
+      `;
+    } else {
+      errorEl.textContent = "Je n'ai pas réussi à trouver de proposition. Réessaie en précisant un peu plus le plat.";
+    }
+  }catch(err){
+    errorEl.textContent = "Une erreur est survenue, réessaie dans un instant.";
+  }finally{
+    btn.disabled = false;
+    btn.textContent = 'Proposer une bouteille';
+  }
+});
+
+// ---------- Helper: extraire le texte final d'une réponse API (avec ou sans web_search) ----------
+function extractApiText(data){
+  if(!data || !data.content) return '';
+  return data.content.filter(c=>c.type==='text').map(c=>c.text).join('\n');
+}
+
+// ---------- Estimation des prix manquants (recherche web) ----------
+$('#estimateLink').addEventListener('click', async ()=>{
+  const link = $('#estimateLink');
+  const missing = bottles.filter(b=> b.prix==null && b.prixEstime==null);
+  if(missing.length === 0) return;
+
+  const originalText = link.textContent;
+  link.textContent = 'Estimation en cours…';
+  link.style.pointerEvents = 'none';
+
+  const listDesc = missing.map(b=>
+    `- id:${b.id} | ${b.domaine} ${b.cuvee||''} ${b.millesime||''} | ${b.region||'région inconnue'} | ${b.couleur} | ${formatLabel(b.format||'bouteille')}`
+  ).join('\n');
+
+  try{
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 1500,
+        tools: [{ type: "web_search_20250305", name: "web_search" }],
+        messages: [{
+          role: "user",
+          content: `Voici une liste de vins dont je ne connais pas le prix d'achat :\n${listDesc}\n\nPour chacun, cherche sur le web une estimation réaliste du prix moyen à l'achat en euros pour une bouteille de 75cl (adapte si le format indiqué est différent), en te basant sur le domaine, la cuvée, le millésime et la région. Si tu ne trouves aucune info précise pour une référence, donne une estimation raisonnable basée sur des vins comparables de la même région et appellation plutôt que de laisser vide. Réponds à la toute fin UNIQUEMENT avec un JSON array, sans texte autour, sans markdown, au format exact : [{"id":"","prixEstimeEuros":0}]`
+        }]
+      })
+    });
+    const data = await response.json();
+    const raw = extractApiText(data).replace(/```json|```/g,'').trim();
+    const jsonMatch = raw.match(/\[[\s\S]*\]/);
+    const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+
+    parsed.forEach(item=>{
+      const b = bottles.find(x=>x.id === item.id);
+      if(b && item.prixEstimeEuros != null){
+        b.prixEstime = parseFloat(item.prixEstimeEuros);
+      }
+    });
+    await saveBottles();
+    render();
+  }catch(err){
+    link.textContent = "Estimation impossible, réessaie plus tard.";
+    setTimeout(()=>{ link.textContent = originalText; }, 3000);
+  }finally{
+    link.style.pointerEvents = 'auto';
+  }
+});
+
+// ---------- Fiche vin : descriptif, dégustation, note (recherche web) ----------
+async function fetchWineInfo(id){
+  const b = bottles.find(x=>x.id===id);
+  if(!b) return;
+  const needsPrice = (b.prix == null && b.prixEstime == null);
+
+  wineInfoLoading.add(id);
+  if(currentDetailId === id) renderDetailView(id);
+
+  try{
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 1200,
+        tools: [{ type: "web_search_20250305", name: "web_search" }],
+        messages: [{
+          role: "user",
+          content: `Cherche des informations sur ce vin : ${b.domaine} ${b.cuvee||''} ${b.millesime||''}, ${b.region||''}, ${b.couleur}, format ${formatLabel(b.format||'bouteille')}.\n\nDonne-moi :\n1. Un descriptif court (2-3 phrases) du domaine et du style du vin.\n2. Le ou les cépages utilisés, si tu les trouves (sinon laisse vide).\n3. Des notes de dégustation typiques (2-3 phrases) : robe, nez, bouche.\n4. Une note ou évaluation trouvée sur le web si elle existe (ex : note d'un critique, d'un guide, ou d'une plateforme), avec sa source et son échelle. Si tu n'en trouves aucune de fiable, indique-le clairement plutôt que d'inventer une note.${needsPrice? "\n5. Une estimation réaliste du prix moyen à l'achat en euros pour une bouteille de 75cl (adapte si le format est différent), basée sur des vins comparables si tu ne trouves pas ce vin précis." : ''}\n\nRéponds à la toute fin UNIQUEMENT avec un JSON, sans texte autour, sans markdown, au format exact : {"descriptif":"","cepage":"","degustation":"","noteCritique":""${needsPrice? ',"prixEstimeEuros":0' : ''}}`
+        }]
+      })
+    });
+    const data = await response.json();
+    const raw = extractApiText(data).replace(/```json|```/g,'').trim();
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+
+    b.descriptif = parsed.descriptif || '';
+    b.degustation = parsed.degustation || '';
+    b.noteCritique = parsed.noteCritique || '';
+    if(!b.cepage && parsed.cepage) b.cepage = parsed.cepage;
+    if(needsPrice && parsed.prixEstimeEuros != null){
+      b.prixEstime = parseFloat(parsed.prixEstimeEuros);
+    }
+    b.infosDate = new Date().toISOString();
+
+    await saveBottles();
+    wineInfoLoading.delete(id);
+    if(currentDetailId === id) renderDetailView(id);
+    render();
+  }catch(err){
+    wineInfoLoading.delete(id);
+    if(currentDetailId === id){
+      renderDetailView(id);
+      const statusEl = $('#wineInfoStatus');
+      if(statusEl) statusEl.innerHTML = '<span style="color:var(--late);">Recherche impossible, réessaie dans un instant.</span>';
+    }
+  }
+}
+window.fetchWineInfo = fetchWineInfo;
+
+// L'initialisation se fait via onAuthStateChanged, déjà enregistré plus haut.
+</script>
+</body>
+</html>
