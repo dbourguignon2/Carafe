@@ -615,7 +615,7 @@ const fbApp = initializeApp(firebaseConfig);
 
 // URL de la fonction serveur qui fait le pont sécurisé vers l'API Anthropic
 // (remplace l'ancien appel direct à api.anthropic.com)
-const CLOUD_FUNCTION_URL = "https://europe-west1-carafe-app.cloudfunctions.net/callClaude";
+const CLOUD_FUNCTION_URL = "https://callclaude-nkt7zf6blq-ew.a.run.app";
 const auth = getAuth(fbApp);
 const db = getFirestore(fbApp);
 let unsubscribeSnapshot = null;
