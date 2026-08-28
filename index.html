@@ -297,6 +297,15 @@
   .wine-info-block .wi-note{ display:inline-block; background: var(--surface); border:1px solid var(--gold-dim); border-radius:8px; padding:5px 10px; font-size:12.5px; color: var(--gold); font-weight:600;}
   .wine-info-fetch-status{ font-size:12px; color: var(--muted); margin: 6px 0 4px; }
 
+  .cepage-chart-row{ display:flex; align-items:center; gap:16px; margin-bottom:12px; }
+  .cepage-donut{
+    width:78px; height:78px; border-radius:50%; flex-shrink:0;
+    box-shadow: inset 0 0 0 20px var(--surface-2);
+  }
+  .cepage-legend{ font-size:12.5px; line-height:1.8; }
+  .cepage-legend-item{ display:flex; align-items:center; gap:7px; color: var(--text); }
+  .cepage-legend-item .dot{ width:9px; height:9px; border-radius:50%; flex-shrink:0; display:inline-block; }
+
   .bottle-photo{
     width:100%; max-height: 260px; object-fit: cover; border-radius: 14px;
     margin-bottom: 14px; border: 1px solid var(--line); display:block;
@@ -494,7 +503,7 @@
 
     <div class="photo-zone" id="photoZone">
       <span id="photoZoneText">📷 Photographier l'étiquette</span>
-      <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none;">
+      <input type="file" id="photoInput" accept="image/*" style="display:none;">
     </div>
     <div id="scanStatus" style="font-size:12px; color:var(--muted); margin-bottom:14px;"></div>
 
@@ -568,6 +577,10 @@
     </div>
     <div style="font-size:11px; color:var(--muted); margin:-4px 0 14px;">Laisse vide pour une estimation automatique selon la région et le millésime.</div>
 
+    <div class="field" style="display:flex; align-items:center; gap:8px; margin-top:6px;">
+      <input type="checkbox" id="f-autofiche" checked style="width:auto; accent-color: var(--wine);">
+      <label style="margin:0; font-size:12.5px;" for="f-autofiche">Générer la fiche automatiquement (recherche web, ~0,03–0,05 $)</label>
+    </div>
     <button class="btn btn-primary" id="btnSaveBottle">Enregistrer la bouteille</button>
     <button class="btn btn-ghost" id="btnCancelAdd">Annuler</button>
   </div>
@@ -1274,6 +1287,14 @@ function renderStats(){
     </div>
 
     <div class="stat-block">
+      <div class="stat-block-title">Carte de mes domaines</div>
+      <div id="domainMapZone"></div>
+      <button class="btn btn-ghost" id="btnLocateDomains" style="margin-top:10px;">📍 Localiser mes domaines sur la carte</button>
+      <div id="domainMapStatus" class="wine-info-fetch-status"></div>
+      <div style="font-size:11px; color:var(--muted); margin-top:6px; line-height:1.5;">Positions approximatives, déterminées par l'IA à partir du nom du domaine et de la région — via un service de cartographie externe et gratuit (OpenStreetMap).</div>
+    </div>
+
+    <div class="stat-block">
       <div class="stat-block-title">Export</div>
       <button class="btn btn-ghost" id="btnExportCave" ${bottles.length===0? 'disabled':''}>📄 Exporter ma cave (tableur .csv)</button>
       <div style="font-size:11px; color:var(--muted); margin-top:6px; line-height:1.5;">Génère un fichier compatible Excel, Google Sheets ou Numbers avec toutes tes bouteilles.</div>
@@ -1281,12 +1302,116 @@ function renderStats(){
   `;
 
   renderValuationChart();
+  renderDomainMap();
 
   const btn = $('#btnRefreshValuation');
   if(btn) btn.addEventListener('click', refreshMarketValue);
 
+  const locateBtn = $('#btnLocateDomains');
+  if(locateBtn) locateBtn.addEventListener('click', locateDomains);
+
   const exportBtn = $('#btnExportCave');
   if(exportBtn) exportBtn.addEventListener('click', exportCaveCSV);
+}
+
+// ---------- Carte des domaines ----------
+function domainKey(b){
+  return `${(b.domaine||'').trim().toLowerCase()}|${(b.region||'').trim().toLowerCase()}`;
+}
+
+function renderDomainMap(){
+  const zone = $('#domainMapZone');
+  if(!zone) return;
+  const located = bottles.filter(b=> b.lat != null && b.lng != null);
+  if(located.length === 0){
+    zone.innerHTML = `<div class="valuation-empty">Clique sur "Localiser mes domaines" pour afficher une carte de tes bouteilles.</div>`;
+    return;
+  }
+
+  // Un point par domaine (regroupe les bouteilles d'un même domaine)
+  const seen = new Set();
+  const points = [];
+  located.forEach(b=>{
+    const key = domainKey(b);
+    if(seen.has(key)) return;
+    seen.add(key);
+    points.push({ lat: b.lat, lng: b.lng, label: b.domaine });
+  });
+
+  const lats = points.map(p=>p.lat), lngs = points.map(p=>p.lng);
+  const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2;
+  const centerLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
+  const spread = Math.max(Math.max(...lats)-Math.min(...lats), Math.max(...lngs)-Math.min(...lngs));
+  let zoom = 5;
+  if(spread < 0.5) zoom = 9;
+  else if(spread < 2) zoom = 7;
+  else if(spread < 6) zoom = 6;
+  else if(spread < 15) zoom = 4;
+  else zoom = 3;
+
+  const markers = points.map(p=> `markers=${p.lat.toFixed(4)},${p.lng.toFixed(4)},red-pushpin`).join('&');
+  const mapUrl = `https://staticmap.openstreetmap.de/staticmap.php?center=${centerLat.toFixed(4)},${centerLng.toFixed(4)}&zoom=${zoom}&size=640x360&maptype=mapnik&${markers}`;
+
+  zone.innerHTML = `
+    <img src="${mapUrl}" alt="Carte de mes domaines" style="width:100%; border-radius:14px; border:1px solid var(--line); display:block;">
+    <div style="font-size:11px; color:var(--muted); margin-top:6px;">${points.length} domaine${points.length>1?'s':''} localisé${points.length>1?'s':''} sur ${new Set(bottles.map(domainKey)).size} au total.</div>
+  `;
+}
+
+async function locateDomains(){
+  const btn = $('#btnLocateDomains');
+  const statusEl = $('#domainMapStatus');
+  const targets = bottles.filter(b=> b.domaine && (b.lat == null || b.lng == null));
+
+  if(targets.length === 0){
+    if(statusEl) statusEl.textContent = "Tous tes domaines sont déjà localisés.";
+    return;
+  }
+
+  if(btn){ btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Localisation en cours…'; }
+  if(statusEl) statusEl.textContent = '';
+
+  // Dédoublonne par domaine + région pour limiter le nombre de requêtes
+  const uniqueMap = new Map();
+  targets.forEach(b=>{
+    const key = domainKey(b);
+    if(!uniqueMap.has(key)) uniqueMap.set(key, { key, domaine: b.domaine, region: b.region||'' });
+  });
+  const uniqueList = Array.from(uniqueMap.values());
+  const listDesc = uniqueList.map(u=> `- clé:${u.key} | ${u.domaine} | ${u.region||'région inconnue'}`).join('\n');
+
+  try{
+    const data = await callClaudeApi({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 1200,
+      messages: [{
+        role: "user",
+        content: `Voici une liste de domaines viticoles :\n${listDesc}\n\nPour chacun, donne des coordonnées géographiques approximatives (latitude, longitude en degrés décimaux WGS84) correspondant à la localisation probable du domaine ou, à défaut, du centre de la région/appellation mentionnée. Une approximation raisonnable suffit. Réponds à la toute fin UNIQUEMENT avec un JSON array, sans texte autour, sans markdown, au format exact : [{"cle":"","lat":0,"lng":0}]`
+      }]
+    });
+    const raw = extractApiText(data).replace(/```json|```/g,'').trim();
+    const jsonMatch = raw.match(/\[[\s\S]*\]/);
+    const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+
+    const coordByKey = {};
+    parsed.forEach(item=>{ if(item.cle) coordByKey[item.cle] = { lat: item.lat, lng: item.lng }; });
+
+    bottles.forEach(b=>{
+      if(b.lat != null && b.lng != null) return;
+      const coord = coordByKey[domainKey(b)];
+      if(coord && coord.lat != null && coord.lng != null){
+        b.lat = parseFloat(coord.lat);
+        b.lng = parseFloat(coord.lng);
+      }
+    });
+    await saveBottles();
+    renderDomainMap();
+    if(statusEl) statusEl.textContent = '';
+  }catch(err){
+    if(statusEl) statusEl.innerHTML = '<span style="color:var(--late);">Localisation impossible, réessaie plus tard.</span>';
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = '📍 Localiser mes domaines sur la carte'; }
+  }
 }
 
 // ---------- Export tableur ----------
@@ -1489,8 +1614,9 @@ function resetAddForm(){
   $('#f-quantite').value = 1;
   $('#f-couleur').value = 'rouge';
   $('#f-format').value = 'bouteille';
+  $('#f-autofiche').checked = true;
   $('#photoZone').classList.remove('has-img');
-  $('#photoZone').innerHTML = `<span id="photoZoneText">📷 Photographier l'étiquette</span><input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none;">`;
+  $('#photoZone').innerHTML = `<span id="photoZoneText">📷 Photographier l'étiquette</span><input type="file" id="photoInput" accept="image/*" style="display:none;">`;
   bindPhotoZone();
   $('#scanStatus').textContent='';
   scannedPhotoBase64 = null;
@@ -1621,6 +1747,15 @@ $('#btnSaveBottle').addEventListener('click', async ()=>{
   await saveBottles();
   $('#addBackdrop').classList.remove('active');
   render();
+  // La fiche du vin (descriptif, dégustation, cépages, note) est générée tout
+  // de suite en arrière-plan, pour être déjà prête quand tu ouvriras la fiche —
+  // sauf si la case a été décochée pour cette bouteille.
+  if($('#f-autofiche').checked){
+    fetchWineInfo(bottle.id);
+  } else {
+    bottle.infosAttempted = true;
+    saveBottles();
+  }
 });
 
 // ---------- Detail sheet ----------
@@ -1630,7 +1765,10 @@ function openDetail(id){
   currentDetailId = id;
   renderDetailView(id);
   const b = bottles.find(x=>x.id===id);
-  if(b && !b.descriptif && !b.degustation && !b.noteCritique && !wineInfoLoading.has(id)){
+  // La recherche automatique ne se déclenche qu'une seule fois par bouteille
+  // (réussie ou non) — jamais à nouveau à chaque simple réouverture de la fiche,
+  // pour éviter de consommer du crédit API inutilement à chaque tentative ratée.
+  if(b && !b.descriptif && !b.degustation && !b.noteCritique && !b.infosAttempted && !wineInfoLoading.has(id)){
     fetchWineInfo(id);
   }
 }
@@ -1679,9 +1817,22 @@ function renderDetailView(id){
       <div class="wine-info-block">
         ${b.descriptif ? `<div class="wi-label">Descriptif</div><div class="wi-text">${escapeHtml(b.descriptif)}</div>` : ''}
         ${b.degustation ? `<div class="wi-label">Dégustation</div><div class="wi-text">${escapeHtml(b.degustation)}</div>` : ''}
+        ${b.gardeApogee ? `<div class="wi-label">Garde &amp; apogée</div><div class="wi-text">${escapeHtml(b.gardeApogee)}</div>` : ''}
+        ${b.cepagesDetail && b.cepagesDetail.length ? `
+          <div class="wi-label">Cépages</div>
+          <div class="cepage-chart-row">
+            ${buildCepageDonut(b.cepagesDetail)}
+            <div class="cepage-legend">
+              ${b.cepagesDetail.map((c,i)=>`<div class="cepage-legend-item"><span class="dot" style="background:${cepageColor(i)};"></span>${escapeHtml(c.nom)}${c.pourcentage? ' — '+Math.round(c.pourcentage)+'%':''}</div>`).join('')}
+            </div>
+          </div>
+        ` : ''}
         ${b.noteCritique ? `<div class="wi-label">Note trouvée</div><div class="wi-note">${escapeHtml(b.noteCritique)}</div>` : ''}
       </div>
-      <button class="btn btn-ghost" id="btnFetchWineInfo" style="margin-bottom:6px;">Relancer la recherche</button>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-ghost" id="btnFetchWineInfo" style="margin-bottom:6px;">Relancer la recherche</button>
+        <button class="btn btn-ghost" id="btnEditWineInfo" style="margin-bottom:6px;">Modifier la fiche</button>
+      </div>
     ` : `
       <button class="btn btn-ghost" id="btnFetchWineInfo" style="margin-bottom:6px;">Rechercher descriptif, dégustation et note sur le web</button>
     `)}
@@ -1731,6 +1882,9 @@ function renderDetailView(id){
   const fetchBtn = $('#btnFetchWineInfo');
   if(fetchBtn) fetchBtn.addEventListener('click', ()=> fetchWineInfo(id));
 
+  const editInfoBtn = $('#btnEditWineInfo');
+  if(editInfoBtn) editInfoBtn.addEventListener('click', ()=> renderWineInfoEdit(id));
+
   $('#btnUpdateStock').addEventListener('click', async ()=>{
     b.quantite = parseInt($('#d-quantite').value) || 0;
     b.emplacement = $('#d-emplacement').value.trim();
@@ -1774,12 +1928,78 @@ function bindEditPhotoZone(){
       const compressedDataUrl = await compressImageFile(file);
       editPhotoDataUrl = compressedDataUrl;
       $('#editPhotoZone').classList.add('has-img');
-      $('#editPhotoZone').innerHTML = `<img src="${compressedDataUrl}"><div class="scan-tag">Changer la photo</div><input type="file" id="editPhotoInput" accept="image/*" capture="environment" style="display:none;">`;
+      $('#editPhotoZone').innerHTML = `<img src="${compressedDataUrl}"><div class="scan-tag">Changer la photo</div><input type="file" id="editPhotoInput" accept="image/*" style="display:none;">`;
       bindEditPhotoZone();
     }catch(err){
       alert("Impossible de traiter cette photo.");
     }
   };
+}
+
+// ---------- Cépages : donut coloré ----------
+const CEPAGE_COLORS = ['#6b1f2a', '#a3763b', '#8a6530', '#4f7a41', '#8f2f3c', '#b0742a'];
+function cepageColor(i){ return CEPAGE_COLORS[i % CEPAGE_COLORS.length]; }
+
+function buildCepageDonut(cepages){
+  const total = cepages.reduce((s,c)=> s + (c.pourcentage||0), 0) || cepages.length;
+  let angleAcc = 0;
+  const stops = cepages.map((c,i)=>{
+    const share = (c.pourcentage || (100/cepages.length));
+    const start = (angleAcc/total)*360;
+    angleAcc += share;
+    const end = (angleAcc/total)*360;
+    return `${cepageColor(i)} ${start.toFixed(1)}deg ${end.toFixed(1)}deg`;
+  }).join(', ');
+  return `<div class="cepage-donut" style="background: conic-gradient(${stops});"></div>`;
+}
+
+function renderWineInfoEdit(id){
+  const b = bottles.find(x=>x.id===id);
+  if(!b) return;
+
+  const content = `
+    <div class="handle"></div>
+    <h2 class="serif">Modifier la fiche</h2>
+    <p class="subtitle">Corrige ou complète les informations de ce vin.</p>
+
+    <div class="field">
+      <label>Descriptif</label>
+      <textarea id="wi-descriptif" style="min-height:80px;">${escapeHtml(b.descriptif||'')}</textarea>
+    </div>
+    <div class="field">
+      <label>Dégustation (robe, nez, bouche, finale)</label>
+      <textarea id="wi-degustation" style="min-height:100px;">${escapeHtml(b.degustation||'')}</textarea>
+    </div>
+    <div class="field">
+      <label>Garde &amp; apogée de dégustation</label>
+      <input type="text" id="wi-garde" value="${escapeHtml(b.gardeApogee||'')}">
+    </div>
+    <div class="field">
+      <label>Cépage(s) — texte libre</label>
+      <input type="text" id="wi-cepage" value="${escapeHtml(b.cepage||'')}">
+    </div>
+    <div style="font-size:11px; color:var(--muted); margin:-6px 0 12px;">Le détail des pourcentages par cépage (graphique) ne peut être corrigé que via une nouvelle recherche, pas depuis ce formulaire.</div>
+    <div class="field">
+      <label>Note critique trouvée</label>
+      <input type="text" id="wi-note" value="${escapeHtml(b.noteCritique||'')}">
+    </div>
+
+    <button class="btn btn-primary" id="btnSaveWineInfo">Enregistrer</button>
+    <button class="btn btn-ghost" id="btnCancelWineInfo">Annuler</button>
+  `;
+  $('#detailSheetContent').innerHTML = content;
+
+  $('#btnCancelWineInfo').addEventListener('click', ()=> renderDetailView(id));
+  $('#btnSaveWineInfo').addEventListener('click', async ()=>{
+    b.descriptif = $('#wi-descriptif').value.trim();
+    b.degustation = $('#wi-degustation').value.trim();
+    b.gardeApogee = $('#wi-garde').value.trim();
+    b.cepage = $('#wi-cepage').value.trim();
+    b.noteCritique = $('#wi-note').value.trim();
+    b.infosAttempted = true;
+    await saveBottles();
+    renderDetailView(id);
+  });
 }
 
 function renderDetailEdit(id){
@@ -1796,7 +2016,7 @@ function renderDetailEdit(id){
       ${b.photo
         ? `<img src="${b.photo}"><div class="scan-tag">Changer la photo</div>`
         : `<span>📷 Ajouter une photo de la bouteille</span>`}
-      <input type="file" id="editPhotoInput" accept="image/*" capture="environment" style="display:none;">
+      <input type="file" id="editPhotoInput" accept="image/*" style="display:none;">
     </div>
 
     <div class="field">
@@ -1974,7 +2194,7 @@ Réponds UNIQUEMENT en JSON, sans texte autour, sans markdown, au format exact :
 
   try{
     const data = await callClaudeApi({
-      model: "claude-sonnet-4-6",
+      model: "claude-haiku-4-5-20251001",
       max_tokens: 700,
       messages: [{ role: "user", content: promptText }]
     });
@@ -2095,17 +2315,45 @@ async function fetchWineInfo(id){
   if(!b) return;
   const needsPrice = (b.prix == null && b.prixEstime == null);
 
+  // Si un vin strictement identique (domaine + cuvée + millésime) a déjà une
+  // fiche dans la cave, on la recopie directement — aucune recherche payante
+  // pour une bouteille dont on connaît déjà tout.
+  const twin = bottles.find(x=>
+    x.id !== id &&
+    x.descriptif &&
+    (x.domaine||'').trim().toLowerCase() === (b.domaine||'').trim().toLowerCase() &&
+    (x.cuvee||'').trim().toLowerCase() === (b.cuvee||'').trim().toLowerCase() &&
+    x.millesime === b.millesime
+  );
+  if(twin){
+    b.descriptif = twin.descriptif;
+    b.degustation = twin.degustation;
+    b.gardeApogee = twin.gardeApogee;
+    b.noteCritique = twin.noteCritique;
+    if(twin.cepagesDetail) b.cepagesDetail = twin.cepagesDetail;
+    if(!b.cepage && twin.cepage) b.cepage = twin.cepage;
+    if(needsPrice && twin.prixEstime != null) b.prixEstime = twin.prixEstime;
+    b.infosAttempted = true;
+    b.infosDate = new Date().toISOString();
+    await saveBottles();
+    if(currentDetailId === id) renderDetailView(id);
+    render();
+    return;
+  }
+
   wineInfoLoading.add(id);
+  b.infosAttempted = true;
+  await saveBottles();
   if(currentDetailId === id) renderDetailView(id);
 
   try{
     const data = await callClaudeApi({
       model: "claude-sonnet-4-6",
-      max_tokens: 1200,
+      max_tokens: 1400,
       tools: [{ type: "web_search_20250305", name: "web_search" }],
       messages: [{
         role: "user",
-        content: `Cherche des informations sur ce vin : ${b.domaine} ${b.cuvee||''} ${b.millesime||''}, ${b.region||''}, ${b.couleur}, format ${formatLabel(b.format||'bouteille')}.\n\nDonne-moi :\n1. Un descriptif court (2-3 phrases) du domaine et du style du vin.\n2. Le ou les cépages utilisés, si tu les trouves (sinon laisse vide).\n3. Des notes de dégustation typiques (2-3 phrases) : robe, nez, bouche.\n4. Une note ou évaluation trouvée sur le web si elle existe (ex : note d'un critique, d'un guide, ou d'une plateforme), avec sa source et son échelle. Si tu n'en trouves aucune de fiable, indique-le clairement plutôt que d'inventer une note.${needsPrice? "\n5. Une estimation réaliste du prix moyen à l'achat en euros pour une bouteille de 75cl (adapte si le format est différent), basée sur des vins comparables si tu ne trouves pas ce vin précis." : ''}\n\nRéponds à la toute fin UNIQUEMENT avec un JSON, sans texte autour, sans markdown, au format exact : {"descriptif":"","cepage":"","degustation":"","noteCritique":""${needsPrice? ',"prixEstimeEuros":0' : ''}}`
+        content: `Cherche des informations sur ce vin : ${b.domaine} ${b.cuvee||''} ${b.millesime||''}, ${b.region||''}, ${b.couleur}, format ${formatLabel(b.format||'bouteille')}.\n\nDonne-moi, dans le style d'une fiche technique de domaine viticole :\n1. Un descriptif du domaine et du style du vin (3-4 phrases).\n2. Une dégustation détaillée façon fiche technique, en plusieurs phrases distinctes couvrant dans l'ordre : la robe, le nez (arômes précis), la bouche (attaque, structure, tanins ou vivacité selon la couleur), puis la finale. Aussi précis et évocateur que possible.\n3. Le potentiel de garde global et la fenêtre d'apogée de dégustation typiques pour ce type de vin (ex : "potentiel de garde de 8 à 10 ans, apogée de dégustation entre 3 et 6 ans"), en une phrase.\n4. Le ou les cépages utilisés avec leur pourcentage approximatif dans l'assemblage si tu les trouves (les pourcentages doivent totaliser environ 100). Si tu ne trouves qu'un seul cépage ou pas de détail d'assemblage, laisse le tableau avec un seul élément à 100% ou vide si inconnu.\n5. Une note ou évaluation trouvée sur le web si elle existe (ex : note d'un critique, d'un guide, ou d'une plateforme), avec sa source et son échelle. Si tu n'en trouves aucune de fiable, indique-le clairement plutôt que d'inventer une note.${needsPrice? "\n6. Une estimation réaliste du prix moyen à l'achat en euros pour une bouteille de 75cl (adapte si le format est différent), basée sur des vins comparables si tu ne trouves pas ce vin précis." : ''}\n\nRéponds à la toute fin UNIQUEMENT avec un JSON, sans texte autour, sans markdown, au format exact : {"descriptif":"","degustation":"","gardeApogee":"","cepages":[{"nom":"","pourcentage":0}],"noteCritique":""${needsPrice? ',"prixEstimeEuros":0' : ''}}`
       }]
     });
     const raw = extractApiText(data).replace(/```json|```/g,'').trim();
@@ -2114,8 +2362,12 @@ async function fetchWineInfo(id){
 
     b.descriptif = parsed.descriptif || '';
     b.degustation = parsed.degustation || '';
+    b.gardeApogee = parsed.gardeApogee || '';
     b.noteCritique = parsed.noteCritique || '';
-    if(!b.cepage && parsed.cepage) b.cepage = parsed.cepage;
+    if(Array.isArray(parsed.cepages) && parsed.cepages.length){
+      b.cepagesDetail = parsed.cepages.filter(c=>c && c.nom).map(c=>({ nom: c.nom, pourcentage: parseFloat(c.pourcentage)||0 }));
+      if(!b.cepage) b.cepage = b.cepagesDetail.map(c=>c.nom).join(', ');
+    }
     if(needsPrice && parsed.prixEstimeEuros != null){
       b.prixEstime = parseFloat(parsed.prixEstimeEuros);
     }
