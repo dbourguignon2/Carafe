@@ -621,7 +621,8 @@ import {
   signInWithEmailAndPassword, signOut, updateProfile, sendPasswordResetEmail
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import {
-  getFirestore, doc, getDoc, setDoc, onSnapshot
+  getFirestore, doc, getDoc, setDoc, onSnapshot,
+  collection, getDocs, writeBatch
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 const fbApp = initializeApp(firebaseConfig);
@@ -632,6 +633,8 @@ const CLOUD_FUNCTION_URL = "https://callclaude-nkt7zf6blq-ew.a.run.app";
 const auth = getAuth(fbApp);
 const db = getFirestore(fbApp);
 let unsubscribeSnapshot = null;
+let unsubscribeBottlesSnapshot = null;
+let knownBottleIds = new Set();
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
@@ -660,29 +663,76 @@ const FORMAT_LABELS = {
 function formatLabel(f){ return FORMAT_LABELS[f] || FORMAT_LABELS.bouteille; }
 
 // ---------- Firestore : chargement / sauvegarde de la cave ----------
+// Chaque bouteille (photo comprise) est son PROPRE document, dans une
+// sous-collection users/{uid}/bottles/{bottleId}. Ça évite définitivement la
+// limite de 1 Mo par document — impossible qu'une seule bouteille (même avec
+// photo) approche cette taille, même avec une cave de centaines de références.
 function userDocRef(uid){
   return doc(db, 'users', uid);
+}
+function bottlesColRef(uid){
+  return collection(db, 'users', uid, 'bottles');
+}
+
+async function migrateLegacyBottlesIfNeeded(uid){
+  try{
+    const existing = await getDocs(bottlesColRef(uid));
+    if(!existing.empty) return; // déjà migré, ou compte déjà sur la nouvelle structure
+
+    const rootSnap = await getDoc(userDocRef(uid));
+    const legacyBottles = rootSnap.exists() ? (rootSnap.data().bottles || []) : [];
+    if(!legacyBottles.length) return;
+
+    const batch = writeBatch(db);
+    legacyBottles.forEach(b=>{
+      if(b && b.id) batch.set(doc(bottlesColRef(uid), b.id), b);
+    });
+    await batch.commit();
+  }catch(err){
+    console.error('Erreur de migration des anciennes bouteilles :', err);
+  }
 }
 
 async function loadData(){
   if(!auth.currentUser) return;
   const uid = auth.currentUser.uid;
 
+  await migrateLegacyBottlesIfNeeded(uid);
+
   if(unsubscribeSnapshot) unsubscribeSnapshot();
   unsubscribeSnapshot = onSnapshot(userDocRef(uid), (snap)=>{
     const data = snap.exists() ? snap.data() : {};
-    bottles = data.bottles || [];
     tastings = data.tastings || [];
     valuationHistory = data.valuationHistory || [];
     render();
   }, (err)=>{
-    console.error('Erreur de synchronisation Firestore :', err);
+    console.error('Erreur de synchronisation Firestore (compte) :', err);
+  });
+
+  if(unsubscribeBottlesSnapshot) unsubscribeBottlesSnapshot();
+  unsubscribeBottlesSnapshot = onSnapshot(bottlesColRef(uid), (snap)=>{
+    knownBottleIds = new Set(snap.docs.map(d=>d.id));
+    bottles = snap.docs.map(d=>({ ...d.data(), id: d.id }));
+    render();
+  }, (err)=>{
+    console.error('Erreur de synchronisation Firestore (bouteilles) :', err);
   });
 }
 
 async function saveBottles(){
   if(!auth.currentUser) return;
-  await setDoc(userDocRef(auth.currentUser.uid), { bottles }, { merge: true });
+  const uid = auth.currentUser.uid;
+  const currentIds = new Set(bottles.map(b=>b.id));
+
+  const batch = writeBatch(db);
+  bottles.forEach(b=>{
+    batch.set(doc(bottlesColRef(uid), b.id), b);
+  });
+  knownBottleIds.forEach(id=>{
+    if(!currentIds.has(id)) batch.delete(doc(bottlesColRef(uid), id));
+  });
+  await batch.commit();
+  knownBottleIds = currentIds;
 }
 async function saveTastings(){
   if(!auth.currentUser) return;
@@ -703,7 +753,8 @@ onAuthStateChanged(auth, async (user)=>{
     closeAuthScreen();
   } else {
     if(unsubscribeSnapshot){ unsubscribeSnapshot(); unsubscribeSnapshot = null; }
-    bottles = []; tastings = []; valuationHistory = [];
+    if(unsubscribeBottlesSnapshot){ unsubscribeBottlesSnapshot(); unsubscribeBottlesSnapshot = null; }
+    bottles = []; tastings = []; valuationHistory = []; knownBottleIds = new Set();
     openAuthScreen('login');
   }
 });
@@ -732,7 +783,7 @@ async function createAccount({ username, email, password, password2, errorElId }
   try{
     const cred = await createUserWithEmailAndPassword(auth, cleanEmail, password);
     await updateProfile(cred.user, { displayName: cleanUsername });
-    await setDoc(userDocRef(cred.user.uid), { bottles: [], tastings: [], valuationHistory: [] }, { merge: true });
+    await setDoc(userDocRef(cred.user.uid), { tastings: [], valuationHistory: [] }, { merge: true });
     renderProfileSwitch();
     return true;
   }catch(err){
@@ -1287,14 +1338,6 @@ function renderStats(){
     </div>
 
     <div class="stat-block">
-      <div class="stat-block-title">Carte de mes domaines</div>
-      <div id="domainMapZone"></div>
-      <button class="btn btn-ghost" id="btnLocateDomains" style="margin-top:10px;">📍 Localiser mes domaines sur la carte</button>
-      <div id="domainMapStatus" class="wine-info-fetch-status"></div>
-      <div style="font-size:11px; color:var(--muted); margin-top:6px; line-height:1.5;">Positions approximatives, déterminées par l'IA à partir du nom du domaine et de la région — via un service de cartographie externe et gratuit (OpenStreetMap).</div>
-    </div>
-
-    <div class="stat-block">
       <div class="stat-block-title">Export</div>
       <button class="btn btn-ghost" id="btnExportCave" ${bottles.length===0? 'disabled':''}>📄 Exporter ma cave (tableur .csv)</button>
       <div style="font-size:11px; color:var(--muted); margin-top:6px; line-height:1.5;">Génère un fichier compatible Excel, Google Sheets ou Numbers avec toutes tes bouteilles.</div>
@@ -1302,116 +1345,12 @@ function renderStats(){
   `;
 
   renderValuationChart();
-  renderDomainMap();
 
   const btn = $('#btnRefreshValuation');
   if(btn) btn.addEventListener('click', refreshMarketValue);
 
-  const locateBtn = $('#btnLocateDomains');
-  if(locateBtn) locateBtn.addEventListener('click', locateDomains);
-
   const exportBtn = $('#btnExportCave');
   if(exportBtn) exportBtn.addEventListener('click', exportCaveCSV);
-}
-
-// ---------- Carte des domaines ----------
-function domainKey(b){
-  return `${(b.domaine||'').trim().toLowerCase()}|${(b.region||'').trim().toLowerCase()}`;
-}
-
-function renderDomainMap(){
-  const zone = $('#domainMapZone');
-  if(!zone) return;
-  const located = bottles.filter(b=> b.lat != null && b.lng != null);
-  if(located.length === 0){
-    zone.innerHTML = `<div class="valuation-empty">Clique sur "Localiser mes domaines" pour afficher une carte de tes bouteilles.</div>`;
-    return;
-  }
-
-  // Un point par domaine (regroupe les bouteilles d'un même domaine)
-  const seen = new Set();
-  const points = [];
-  located.forEach(b=>{
-    const key = domainKey(b);
-    if(seen.has(key)) return;
-    seen.add(key);
-    points.push({ lat: b.lat, lng: b.lng, label: b.domaine });
-  });
-
-  const lats = points.map(p=>p.lat), lngs = points.map(p=>p.lng);
-  const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2;
-  const centerLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
-  const spread = Math.max(Math.max(...lats)-Math.min(...lats), Math.max(...lngs)-Math.min(...lngs));
-  let zoom = 5;
-  if(spread < 0.5) zoom = 9;
-  else if(spread < 2) zoom = 7;
-  else if(spread < 6) zoom = 6;
-  else if(spread < 15) zoom = 4;
-  else zoom = 3;
-
-  const markers = points.map(p=> `markers=${p.lat.toFixed(4)},${p.lng.toFixed(4)},red-pushpin`).join('&');
-  const mapUrl = `https://staticmap.openstreetmap.de/staticmap.php?center=${centerLat.toFixed(4)},${centerLng.toFixed(4)}&zoom=${zoom}&size=640x360&maptype=mapnik&${markers}`;
-
-  zone.innerHTML = `
-    <img src="${mapUrl}" alt="Carte de mes domaines" style="width:100%; border-radius:14px; border:1px solid var(--line); display:block;">
-    <div style="font-size:11px; color:var(--muted); margin-top:6px;">${points.length} domaine${points.length>1?'s':''} localisé${points.length>1?'s':''} sur ${new Set(bottles.map(domainKey)).size} au total.</div>
-  `;
-}
-
-async function locateDomains(){
-  const btn = $('#btnLocateDomains');
-  const statusEl = $('#domainMapStatus');
-  const targets = bottles.filter(b=> b.domaine && (b.lat == null || b.lng == null));
-
-  if(targets.length === 0){
-    if(statusEl) statusEl.textContent = "Tous tes domaines sont déjà localisés.";
-    return;
-  }
-
-  if(btn){ btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Localisation en cours…'; }
-  if(statusEl) statusEl.textContent = '';
-
-  // Dédoublonne par domaine + région pour limiter le nombre de requêtes
-  const uniqueMap = new Map();
-  targets.forEach(b=>{
-    const key = domainKey(b);
-    if(!uniqueMap.has(key)) uniqueMap.set(key, { key, domaine: b.domaine, region: b.region||'' });
-  });
-  const uniqueList = Array.from(uniqueMap.values());
-  const listDesc = uniqueList.map(u=> `- clé:${u.key} | ${u.domaine} | ${u.region||'région inconnue'}`).join('\n');
-
-  try{
-    const data = await callClaudeApi({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 1200,
-      messages: [{
-        role: "user",
-        content: `Voici une liste de domaines viticoles :\n${listDesc}\n\nPour chacun, donne des coordonnées géographiques approximatives (latitude, longitude en degrés décimaux WGS84) correspondant à la localisation probable du domaine ou, à défaut, du centre de la région/appellation mentionnée. Une approximation raisonnable suffit. Réponds à la toute fin UNIQUEMENT avec un JSON array, sans texte autour, sans markdown, au format exact : [{"cle":"","lat":0,"lng":0}]`
-      }]
-    });
-    const raw = extractApiText(data).replace(/```json|```/g,'').trim();
-    const jsonMatch = raw.match(/\[[\s\S]*\]/);
-    const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
-
-    const coordByKey = {};
-    parsed.forEach(item=>{ if(item.cle) coordByKey[item.cle] = { lat: item.lat, lng: item.lng }; });
-
-    bottles.forEach(b=>{
-      if(b.lat != null && b.lng != null) return;
-      const coord = coordByKey[domainKey(b)];
-      if(coord && coord.lat != null && coord.lng != null){
-        b.lat = parseFloat(coord.lat);
-        b.lng = parseFloat(coord.lng);
-      }
-    });
-    await saveBottles();
-    renderDomainMap();
-    if(statusEl) statusEl.textContent = '';
-  }catch(err){
-    if(statusEl) statusEl.innerHTML = '<span style="color:var(--late);">Localisation impossible, réessaie plus tard.</span>';
-  }finally{
-    if(btn){ btn.disabled = false; btn.textContent = '📍 Localiser mes domaines sur la carte'; }
-  }
 }
 
 // ---------- Export tableur ----------
